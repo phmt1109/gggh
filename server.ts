@@ -163,9 +163,26 @@ async function startServer() {
         return;
       }
 
+      if (req.method === 'OPTIONS') {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', '*');
+        res.status(204).end();
+        return;
+      }
+
       // Filter and forward headers
       const forwardedHeaders: Record<string, string> = {};
-      const forbiddenHeaders = ['host', 'connection', 'content-length', 'transfer-encoding', 'x-target-url'];
+      const forbiddenHeaders = [
+        'host',
+        'connection',
+        'content-length',
+        'transfer-encoding',
+        'accept-encoding',
+        'x-target-url',
+        'origin',
+        'referer',
+      ];
       for (const [key, value] of Object.entries(req.headers)) {
         const lowerKey = key.toLowerCase();
         if (!forbiddenHeaders.includes(lowerKey) && typeof value === 'string') {

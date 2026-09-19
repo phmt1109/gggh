@@ -233,37 +233,11 @@ export const DEFAULT_PRESETS: Preset[] = [
     group: 'other',
     defaultModels: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
   },
-
-  // Nhóm Máy Local
-  {
-    id: 'preset-ollama',
-    name: 'Ollama (Local)',
-    baseUrl: 'http://localhost:11434/v1',
-    format: 'openai',
-    group: 'local',
-    defaultModels: ['llama3.2', 'qwen2.5', 'deepseek-r1', 'mistral'],
-  },
-  {
-    id: 'preset-lmstudio',
-    name: 'LM Studio (Local)',
-    baseUrl: 'http://localhost:1234/v1',
-    format: 'openai',
-    group: 'local',
-    defaultModels: ['local-model'],
-  },
-  {
-    id: 'preset-llamacpp',
-    name: 'llama.cpp (Local)',
-    baseUrl: 'http://localhost:8080/v1',
-    format: 'openai',
-    group: 'local',
-    defaultModels: ['default'],
-  },
 ];
 
 export const DEFAULT_SETTINGS: Settings = {
-  temperature: 0.7,
-  maxTokens: 2048,
+  temperature: 1.0,
+  maxTokens: 8192,
   stream: true,
   filterChatModels: true,
   nsfw: false,

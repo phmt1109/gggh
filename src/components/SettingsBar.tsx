@@ -16,25 +16,58 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
   onToggleSysPanel,
   onClearChat,
 }) => {
+  const tempPercent = Math.min(100, Math.max(0, (settings.temperature / 2) * 100));
+
   return (
     <section id="settingsBar">
-      <label className="ctrl" title="Độ sáng tạo (Temperature)">
+      <div className="ctrl" title="Độ sáng tạo (Temperature: 0.00 đến 2.00, mặc định: 1.00)">
         <span>Temp:</span>
         <input
           id="tempRange"
           type="range"
           min="0"
           max="2"
-          step="0.05"
+          step="0.01"
           value={settings.temperature}
-          onChange={(e) => onUpdateSettings({ temperature: parseFloat(e.target.value) })}
+          onChange={(e) => {
+            const val = parseFloat(e.target.value);
+            if (!isNaN(val)) {
+              onUpdateSettings({ temperature: Math.round(val * 100) / 100 });
+            }
+          }}
+          style={{
+            width: '90px',
+            background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${tempPercent}%, rgba(255, 255, 255, 0.15) ${tempPercent}%, rgba(255, 255, 255, 0.15) 100%)`,
+          }}
         />
-        <span id="tempVal" className="ctrl-val">
-          {settings.temperature.toFixed(2)}
-        </span>
-      </label>
+        <input
+          id="tempValInput"
+          type="number"
+          className="num"
+          min="0"
+          max="2"
+          step="0.01"
+          value={settings.temperature}
+          onChange={(e) => {
+            const val = parseFloat(e.target.value);
+            if (!isNaN(val)) {
+              const clamped = Math.min(2, Math.max(0, Math.round(val * 100) / 100));
+              onUpdateSettings({ temperature: clamped });
+            }
+          }}
+          style={{
+            width: '54px',
+            padding: '2px 4px',
+            fontSize: '11.5px',
+            textAlign: 'center',
+            fontFamily: 'ui-monospace, monospace',
+            height: '24px',
+          }}
+          title="Nhập trực tiếp giá trị Temperature từ 0.00 đến 2.00 (mặc định 1.00)"
+        />
+      </div>
 
-      <label className="ctrl" title="Giới hạn số token tối đa cho câu trả lời">
+      <label className="ctrl" title="Giới hạn số token tối đa cho câu trả lời (Mặc định: 8192, hỗ trợ tới 131072+)">
         <span>Max tokens:</span>
         <input
           id="maxTokensInput"
@@ -42,8 +75,9 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
           className="num"
           value={settings.maxTokens}
           min="1"
-          max="131072"
-          step="128"
+          max="1000000"
+          step="256"
+          style={{ width: '74px', padding: '2px 6px', fontSize: '11.5px', height: '24px' }}
           onChange={(e) => {
             const val = parseInt(e.target.value, 10);
             if (!isNaN(val) && val > 0) {

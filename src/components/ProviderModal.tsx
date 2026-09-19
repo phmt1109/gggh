@@ -232,14 +232,6 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
                     </option>
                   ))}
                 </optgroup>
-
-                <optgroup label="Mô hình nội bộ (Local)">
-                  {DEFAULT_PRESETS.filter((p) => p.group === 'local').map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </optgroup>
               </select>
 
               {isSelectedCustomPreset && (
