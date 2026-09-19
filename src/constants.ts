@@ -113,7 +113,7 @@ export function getWebSearchInstructionPrompt(): string {
   return '';
 }
 
-export const REFUSAL_REGEX = /(as an ai|i cannot|i can't|i'm sorry|i am sorry|i apologize|i must decline|violates (our|the)? (safety|content)? (policy|guidelines)|inappropriate|sexually explicit|ethical guidelines|moral|tôi không thể|tôi xin lỗi|tôi rất tiếc|vi phạm chính sách|chính sách an toàn|tôi không được phép|nội dung người lớn|trợ lý ảo không thể)/i;
+export const REFUSAL_REGEX = /(as an ai|i cannot|i can't|i'm sorry|i am sorry|i apologize|i must decline|violates (our|the)? (safety|content)? (policy|guidelines)|inappropriate|sexually explicit|ethical guidelines|moral|tôi không thể|tôi xin lỗi|tôi rất tiếc|vi phạm chính sách|chính sách an toàn|tôi không được phép|nội dung người lớn|trợ lý ảo không thể|mình không thể|mình không được|mình xin lỗi|mình rất tiếc|mình không hỗ trợ|không thể sáng tạo|nội dung khiêu dâm|hành vi tình dục|chủ đề tình cảm, lãng mạn|chủ đề khác, mình rất sẵn lòng)/i;
 
 export const NON_CHAT_MODELS_REGEX = /(embed|whisper|tts|dall-e|imagen|image|moderation|babbage|davinci|realtime|transcription|rerank|audio|speech|music|video|embedding)/i;
 

@@ -656,6 +656,27 @@ async function callOpenAI(opts: {
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
+
+    // Auto-Recovery for HTTP 402 (Insufficient credits or max_tokens exceeds affordability on OpenRouter/Together)
+    if (res.status === 402 || errText.includes('requires more credits') || errText.includes('can only afford')) {
+      const affordMatch = errText.match(/can only afford (\d+)/i);
+      const affordableTokens = affordMatch
+        ? Math.max(64, parseInt(affordMatch[1], 10) - 20)
+        : Math.max(128, Math.min(512, Math.floor((body.max_tokens || 2048) / 3)));
+
+      if (affordableTokens && affordableTokens < (body.max_tokens || 8192) && !(opts as any)._retried402) {
+        console.warn(`[Auto-Recovery 402] Tự động giảm max_tokens xuống ${affordableTokens} để phù hợp với số dư tài khoản.`);
+        return callOpenAI({
+          ...opts,
+          settings: {
+            ...settings,
+            maxTokens: affordableTokens,
+          },
+          _retried402: true,
+        } as any);
+      }
+    }
+
     addApiLog({
       type: 'chat',
       provider: 'OpenAI',
@@ -784,6 +805,27 @@ async function callAnthropic(opts: {
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
+
+    // Auto-recovery for credit/token limit errors
+    if (res.status === 402 || errText.includes('max_tokens') || errText.includes('credit')) {
+      const affordMatch = errText.match(/can only afford (\d+)/i);
+      const affordableTokens = affordMatch
+        ? Math.max(64, parseInt(affordMatch[1], 10) - 20)
+        : Math.max(128, Math.min(512, Math.floor((body.max_tokens || 2048) / 2)));
+
+      if (affordableTokens && affordableTokens < (body.max_tokens || 8192) && !(opts as any)._retried402) {
+        console.warn(`[Auto-Recovery Anthropic 402] Giảm max_tokens xuống ${affordableTokens}`);
+        return callAnthropic({
+          ...opts,
+          settings: {
+            ...settings,
+            maxTokens: affordableTokens,
+          },
+          _retried402: true,
+        } as any);
+      }
+    }
+
     addApiLog({
       type: 'chat',
       provider: 'Anthropic',
@@ -900,8 +942,8 @@ async function callGemini(opts: {
     },
   };
 
-  // Google Search Grounding: tìm kiếm web thời gian thực
-  if (settings.webSearch !== false && !retryWithNoTools) {
+  // Google Search Grounding: tìm kiếm web thời gian thực (Tắt khi ở chế độ 18+ để không kích hoạt bộ lọc kiểm duyệt bổ sung của Google Search)
+  if (settings.webSearch !== false && !settings.nsfw && !retryWithNoTools) {
     body.tools = [{ google_search: {} }];
   }
 
@@ -911,13 +953,14 @@ async function callGemini(opts: {
     };
   }
 
-  // 18+ safety settings (standard official Gemini v1beta categories)
+  // 18+ safety settings (standard official Gemini v1beta categories: BLOCK_NONE)
   if (settings.nsfw && !retryWithNoSafety) {
     body.safetySettings = [
       { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' },
     ];
   }
 
@@ -996,6 +1039,21 @@ async function callGemini(opts: {
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
+    // Check if error is model not found or invalid model (HTTP 404 or 400)
+    if (
+      (res.status === 404 || res.status === 400 || errText.toLowerCase().includes('not found') || errText.toLowerCase().includes('is not supported')) &&
+      !cleanModel.includes('gemini-2.5-flash') &&
+      !cleanModel.includes('gemini-1.5-flash') &&
+      !(opts as any)._retriedModel
+    ) {
+      console.warn(`[Gemini Fallback] Model ${cleanModel} không khả dụng, tự động chuyển sang gemini-2.5-flash`);
+      return callGemini({
+        ...opts,
+        model: 'gemini-2.5-flash',
+        _retriedModel: true,
+      } as any);
+    }
+
     // Check if error is tools/googleSearch related on Gemini (HTTP 400)
     if (!retryWithNoTools && (res.status === 400 || errText.toLowerCase().includes('tool') || errText.toLowerCase().includes('search') || errText.toLowerCase().includes('googlesearch'))) {
       return callGemini({

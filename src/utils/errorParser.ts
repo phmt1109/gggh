@@ -87,6 +87,9 @@ export function parseApiError(rawError: string): ParsedApiError {
       summary = 'Bị từ chối quyền truy cập hoặc tài khoản chưa kích hoạt/nạp tiền (403 Forbidden).';
     } else if (httpCode === 'HTTP 404' || lower.includes('404') || lower.includes('not found')) {
       summary = 'Địa chỉ Base URL không tồn tại hoặc sai đường dẫn API (404 Not Found).';
+    } else if (httpCode === 'HTTP 402' || lower.includes('402') || lower.includes('requires more credits') || lower.includes('can only afford')) {
+      summary = 'Số dư tài khoản API không đủ hoặc giá trị Max Tokens vượt quá số dư còn lại (HTTP 402).';
+      hint = 'Ứng dụng đã tự động tối ưu số lượng tokens để gửi câu hỏi. Bạn có thể giảm tham số Max Tokens trên thanh SettingsBar hoặc nạp thêm credits.';
     } else if (httpCode === 'HTTP 429' || lower.includes('429') || lower.includes('quota') || lower.includes('rate limit')) {
       summary = 'Đã hết hạn mức gọi (Quota) hoặc bị nghẽn tần suất (429 Rate Limit / Quota Exceeded).';
     } else if (lower.includes('failed to fetch') || lower.includes('cors') || lower.includes('networkerror')) {
