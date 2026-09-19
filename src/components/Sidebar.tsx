@@ -248,28 +248,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </label>
           </div>
 
-          <a
-            id="downloadStandaloneLink"
-            href="/standalone.html"
-            download="standalone.html"
-            className="btn-ghost small"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              marginTop: 8,
-              textDecoration: 'none',
-              color: 'var(--accent)',
-              borderColor: 'rgba(99, 102, 241, 0.4)',
-              background: 'rgba(99, 102, 241, 0.08)',
-              fontWeight: 500,
-            }}
-            title="Tải về file standalone.html gộp tất cả (chạy offline độc lập trên trình duyệt)"
-          >
-            📦 Tải file gộp (standalone.html)
-          </a>
-
           <button
             id="clearAllBtn"
             className="btn-ghost small"
