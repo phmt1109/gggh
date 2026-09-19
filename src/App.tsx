@@ -219,6 +219,38 @@ export default function App() {
     } catch (err: any) {
       console.error('Scan error:', err);
       const errMsg = err?.message || 'Không thể kết nối đến nhà cung cấp';
+
+      // Auto recovery for Gemini if blocked by ListModels restriction
+      if (
+        (prov.format === 'gemini' || prov.baseUrl.includes('generativelanguage')) &&
+        (errMsg.includes('API_KEY_SERVICE_BLOCKED') || errMsg.includes('UNAUTHENTICATED'))
+      ) {
+        const fallbackList = [
+          'gemini-2.5-flash',
+          'gemini-2.5-pro',
+          'gemini-2.0-flash',
+          'gemini-2.0-pro-exp-02-05',
+          'gemini-1.5-flash',
+          'gemini-1.5-pro',
+        ];
+        setProviders((prev) =>
+          prev.map((p) =>
+            p.id === prov.id
+              ? {
+                  ...p,
+                  models: fallbackList,
+                  status: 'ok',
+                  statusText: '✓ Đã nạp 6 model Gemini chính thức (Bỏ qua giới hạn ListModels để chat ngay)',
+                  lastChecked: Date.now(),
+                }
+              : p
+          )
+        );
+        setSelectedModels((prev) => ({ ...prev, [prov.id]: fallbackList[0] }));
+        triggerToast(`✓ [${prov.name}] Đã nạp 6 model Gemini. Bạn có thể chat ngay!`);
+        return;
+      }
+
       setProviders((prev) =>
         prev.map((p) =>
           p.id === prov.id

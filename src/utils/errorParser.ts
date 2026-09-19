@@ -71,7 +71,10 @@ export function parseApiError(rawError: string): ParsedApiError {
   let summary = '';
   const lower = body.toLowerCase();
 
-  if (parsedJson?.error?.message) {
+  if (body.includes('API_KEY_SERVICE_BLOCKED')) {
+    summary = 'API Key bị chặn quyền dùng Generative Language API (Google Gemini).';
+    hint = 'Key này đang bị giới hạn (API restrictions) trong Google Cloud Console hoặc dự án chưa bật dịch vụ generativelanguage.googleapis.com. Cách sửa nhanh nhất: vào aistudio.google.com/app/apikey tạo một Key mới.';
+  } else if (parsedJson?.error?.message) {
     summary = parsedJson.error.message;
   } else if (parsedJson?.message) {
     summary = parsedJson.message;

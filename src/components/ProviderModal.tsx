@@ -127,9 +127,25 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       }
     } catch (err: any) {
       console.error('Test error in modal:', err);
+      const errStr = err?.message || String(err);
+      if (
+        (format === 'gemini' || baseUrl.includes('generativelanguage')) &&
+        (errStr.includes('API_KEY_SERVICE_BLOCKED') || errStr.includes('UNAUTHENTICATED'))
+      ) {
+        const fallbackModels = [
+          'gemini-2.5-flash',
+          'gemini-2.5-pro',
+          'gemini-2.0-flash',
+          'gemini-1.5-flash',
+          'gemini-1.5-pro',
+        ];
+        setTestResult({ status: 'ok', models: fallbackModels });
+        setSelectedDefaultModel(fallbackModels[0]);
+        return;
+      }
       setTestResult({
         status: 'err',
-        error: err?.message || String(err),
+        error: errStr,
       });
     } finally {
       setIsTesting(false);

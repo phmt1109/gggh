@@ -50,6 +50,7 @@ export interface Settings {
   contextLimit: number; // 0 = all, 6, 12, 20, 40
   jailbreakStrategy: JailbreakStrategy;
   assistantPrefill: boolean;
+  webSearch?: boolean; // Bật/tắt tìm kiếm Web thời gian thực & neo thời gian thực tế
 }
 
 export interface AppState {
