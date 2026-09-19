@@ -1039,14 +1039,14 @@ async function callGemini(opts: {
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    // Check if error is model not found or invalid model (HTTP 404 or 400)
+    // Check if error is model not found or restricted model (HTTP 404, 400, or 401 API_KEY_SERVICE_BLOCKED for internal models)
     if (
-      (res.status === 404 || res.status === 400 || errText.toLowerCase().includes('not found') || errText.toLowerCase().includes('is not supported')) &&
+      (res.status === 404 || res.status === 400 || (res.status === 401 && (errText.includes('API_KEY_SERVICE_BLOCKED') || cleanModel.includes('antigravity'))) || errText.toLowerCase().includes('not found') || errText.toLowerCase().includes('is not supported')) &&
       !cleanModel.includes('gemini-2.5-flash') &&
       !cleanModel.includes('gemini-1.5-flash') &&
       !(opts as any)._retriedModel
     ) {
-      console.warn(`[Gemini Fallback] Model ${cleanModel} không khả dụng, tự động chuyển sang gemini-2.5-flash`);
+      console.warn(`[Gemini Fallback] Model ${cleanModel} không khả dụng với API Key này, tự động chuyển sang gemini-2.5-flash`);
       return callGemini({
         ...opts,
         model: 'gemini-2.5-flash',
