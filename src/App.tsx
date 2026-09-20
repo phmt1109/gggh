@@ -169,7 +169,7 @@ export default function App() {
       return manualModelNames[provId] || '';
     }
     const selected = selectedModels[provId];
-    if (selected && availableModels.includes(selected)) {
+    if (selected) {
       return selected;
     }
     return availableModels[0] || '';
@@ -210,12 +210,18 @@ export default function App() {
         )
       );
 
-      // Auto-select first chat model
-      const filtered = filterModels(foundModels, settings.filterChatModels);
-      const defaultChoice = filtered[0] || foundModels[0];
-      setSelectedModels((prev) => ({ ...prev, [prov.id]: defaultChoice }));
+      // QUAN TRỌNG: Giữ nguyên model người dùng đang chọn, không bị đổi về model khác
+      setSelectedModels((prev) => {
+        const currentModel = prev[prov.id];
+        if (currentModel) {
+          return prev; // Giữ nguyên 100% model đang dùng
+        }
+        const filtered = filterModels(foundModels, settings.filterChatModels);
+        const defaultChoice = filtered[0] || foundModels[0] || '';
+        return { ...prev, [prov.id]: defaultChoice };
+      });
 
-      triggerToast(`✓ [${prov.name}] Dò thành công ${foundModels.length} models!`);
+      triggerToast(`✓ [${prov.name}] Dò thành công ${foundModels.length} models! (Đã giữ nguyên model đang chọn)`);
     } catch (err: any) {
       console.error('Scan error:', err);
       const errMsg = err?.message || 'Không thể kết nối đến nhà cung cấp';
@@ -246,8 +252,14 @@ export default function App() {
               : p
           )
         );
-        setSelectedModels((prev) => ({ ...prev, [prov.id]: fallbackList[0] }));
-        triggerToast(`✓ [${prov.name}] Đã nạp 6 model Gemini. Bạn có thể chat ngay!`);
+        setSelectedModels((prev) => {
+          const currentModel = prev[prov.id];
+          if (currentModel) {
+            return prev; // Giữ nguyên model đang dùng
+          }
+          return { ...prev, [prov.id]: fallbackList[0] };
+        });
+        triggerToast(`✓ [${prov.name}] Đã nạp 6 model Gemini. (Đã giữ nguyên model đang chọn)`);
         return;
       }
 
@@ -819,6 +831,7 @@ export default function App() {
           setEditingProvider(null);
         }}
         editingProvider={editingProvider}
+        currentModel={editingProvider ? (selectedModels[editingProvider.id] || '') : ''}
         myPresets={myPresets}
         onSaveProvider={handleSaveProvider}
         onDeleteCustomPreset={handleDeleteCustomPreset}

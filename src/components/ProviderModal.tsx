@@ -8,6 +8,7 @@ interface ProviderModalProps {
   isOpen: boolean;
   onClose: () => void;
   editingProvider: Provider | null;
+  currentModel?: string;
   myPresets: Preset[];
   onSaveProvider: (data: {
     name: string;
@@ -25,6 +26,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
   isOpen,
   onClose,
   editingProvider,
+  currentModel,
   myPresets,
   onSaveProvider,
   onDeleteCustomPreset,
@@ -49,7 +51,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
   // Sync state when editingProvider changes or modal opens
   useEffect(() => {
     setTestResult({ status: 'idle' });
-    setSelectedDefaultModel('');
+    setSelectedDefaultModel(currentModel || '');
     setIsTesting(false);
 
     if (editingProvider) {
@@ -61,7 +63,11 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       setSaveAsPreset(false);
       if (editingProvider.models && editingProvider.models.length > 0) {
         setTestResult({ status: 'ok', models: editingProvider.models });
-        setSelectedDefaultModel(editingProvider.models[0] || '');
+        // Ưu tiên giữ nguyên model người dùng đang chọn
+        const initialChoice = currentModel && editingProvider.models.includes(currentModel)
+          ? currentModel
+          : (currentModel || editingProvider.models[0] || '');
+        setSelectedDefaultModel(initialChoice);
       }
     } else {
       // Default to OpenAI preset for convenient quickstart
@@ -73,7 +79,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       setApiKey('');
       setSaveAsPreset(false);
     }
-  }, [editingProvider, isOpen]);
+  }, [editingProvider, isOpen, currentModel]);
 
   if (!isOpen) return null;
 
@@ -122,7 +128,11 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
         throw new Error('API kết nối được nhưng không tìm thấy mô hình AI (danh sách models rỗng).');
       }
       setTestResult({ status: 'ok', models: foundModels });
-      if (!selectedDefaultModel || !foundModels.includes(selectedDefaultModel)) {
+      // Giữ nguyên model người dùng đang chọn nếu có
+      const preservedChoice = selectedDefaultModel || currentModel || '';
+      if (preservedChoice && foundModels.includes(preservedChoice)) {
+        setSelectedDefaultModel(preservedChoice);
+      } else if (!selectedDefaultModel) {
         setSelectedDefaultModel(foundModels[0] || '');
       }
     } catch (err: any) {
@@ -140,7 +150,12 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
           'gemini-1.5-pro',
         ];
         setTestResult({ status: 'ok', models: fallbackModels });
-        setSelectedDefaultModel(fallbackModels[0]);
+        const preservedChoice = selectedDefaultModel || currentModel || '';
+        if (preservedChoice && fallbackModels.includes(preservedChoice)) {
+          setSelectedDefaultModel(preservedChoice);
+        } else {
+          setSelectedDefaultModel(fallbackModels[0]);
+        }
         return;
       }
       setTestResult({
@@ -391,6 +406,11 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
                     onChange={(e) => setSelectedDefaultModel(e.target.value)}
                     style={{ width: '100%', fontSize: 13 }}
                   >
+                    {selectedDefaultModel && !testResult.models.includes(selectedDefaultModel) && (
+                      <option key={selectedDefaultModel} value={selectedDefaultModel}>
+                        {selectedDefaultModel} (Đang dùng)
+                      </option>
+                    )}
                     {testResult.models.map((m) => (
                       <option key={m} value={m}>
                         {m}

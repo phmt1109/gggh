@@ -84,19 +84,30 @@ export const Topbar: React.FC<TopbarProps> = ({
             title={selectedModel || 'Chọn mô hình AI'}
           >
             {models.length === 0 ? (
-              <option value="">
-                {activeProvider?.status === 'err'
-                  ? '🔴 Lỗi dò model (Nhấn 🔄 thử lại hoặc ✏️ nhập tay)'
-                  : activeProvider?.status === 'loading'
-                  ? '⏳ Đang quét danh sách model...'
-                  : '(Chưa có model - Nhấn 🔄 để dò)'}
-              </option>
-            ) : (
-              models.map((m) => (
-                <option key={m} value={m} title={m}>
-                  {m}
+              selectedModel ? (
+                <option value={selectedModel}>{selectedModel} (Đang dùng)</option>
+              ) : (
+                <option value="">
+                  {activeProvider?.status === 'err'
+                    ? '🔴 Lỗi dò model (Nhấn 🔄 thử lại hoặc ✏️ nhập tay)'
+                    : activeProvider?.status === 'loading'
+                    ? '⏳ Đang quét danh sách model...'
+                    : '(Chưa có model - Nhấn 🔄 để dò)'}
                 </option>
-              ))
+              )
+            ) : (
+              <>
+                {selectedModel && !models.includes(selectedModel) && (
+                  <option key={selectedModel} value={selectedModel}>
+                    {selectedModel} (Đang dùng)
+                  </option>
+                )}
+                {models.map((m) => (
+                  <option key={m} value={m} title={m}>
+                    {m}
+                  </option>
+                ))}
+              </>
             )}
           </select>
         )}

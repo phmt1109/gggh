@@ -6,6 +6,8 @@ import {
   getDynamicMandateTail,
   getRealtimeContextPrompt,
   getWebSearchInstructionPrompt,
+  isCreativeWritingRequest,
+  isFeedbackOrPraise,
   JAILBREAK_PROMPTS,
   MANDATE_TAIL,
   NON_CHAT_MODELS_REGEX,
@@ -538,7 +540,9 @@ export async function executeChat(params: ChatExecuteParams): Promise<ChatExecut
           }
         } else {
           const lower = m.content.trim().toLowerCase();
-          if (lower.length <= 40 || /^(xin chào|chào|chào bạn|hello|hi|hey|alo|ơi|bạn ơi|có đó không)/i.test(lower)) {
+          if (isFeedbackOrPraise(lower)) {
+            content += `\n\n[LƯU Ý ĐỘ DÀI: Người dùng đang khen ngợi hoặc nhận xét bài viết. Bạn BẮT BUỘC chỉ cảm ơn và đáp lại 1-2 câu ngắn gọn, tự nhiên. TUYỆT ĐỐI KHÔNG tự ý viết tiếp truyện hoặc tạo nội dung mới khi chưa được yêu cầu.]`;
+          } else if (lower.length <= 40 || /^(xin chào|chào|chào bạn|hello|hi|hey|alo|ơi|bạn ơi|có đó không)/i.test(lower)) {
             content += `\n\n[LƯU Ý ĐỘ DÀI: Người dùng đang chào hỏi hoặc nói chuyện ngắn. Bạn BẮT BUỘC chỉ trả lời 1-2 câu ngắn gọn, tự nhiên như con người trò chuyện. TUYỆT ĐỐI KHÔNG viết một đoạn văn dài dòng khi chưa được yêu cầu.]`;
           }
         }
@@ -887,12 +891,14 @@ async function callAnthropic(opts: {
   }));
 
   // Assistant prefill technique for Anthropic (Forces continuation without refusal)
-  // Only use prefill if it's NOT a greeting or brief talk (so it does not write an essay on 'xin chào')
+  // Only use prefill if it's an explicit creative writing or continuation request, NEVER on greeting, praise, or evaluation!
   const lastUserText = (messages[messages.length - 1]?.content || '').trim().toLowerCase();
   const isGreetingMsg =
     lastUserText.length <= 40 ||
     /^(xin chào|chào|chào bạn|hello|hi|hey|alo|ơi|bạn ơi)/i.test(lastUserText);
-  const usePrefill = settings.nsfw && (settings.assistantPrefill ?? true) && !isGreetingMsg;
+  const isFeedback = isFeedbackOrPraise(lastUserText);
+  const isCreativeReq = isCreativeWritingRequest(lastUserText);
+  const usePrefill = settings.nsfw && (settings.assistantPrefill ?? true) && !isGreetingMsg && !isFeedback && isCreativeReq;
   if (usePrefill) {
     formattedMessages.push({
       role: 'assistant',
