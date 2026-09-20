@@ -38,7 +38,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
           <ol>
             <li>Chọn hoặc thêm nhà cung cấp ở <code>Menu bên trái</code></li>
             <li>Dán API key và nhấn <code>Dò model</code></li>
-            <li>Bật <code>🔞 18+</code> để kích hoạt cơ chế tối cao không kiểm duyệt</li>
+            <li>Bật <code>🔞 18+</code> để kích hoạt chế độ sáng tạo tự do cho mọi thể loại</li>
           </ol>
         </div>
       </div>

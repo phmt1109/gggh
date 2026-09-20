@@ -490,7 +490,15 @@ export async function executeChat(params: ChatExecuteParams): Promise<ChatExecut
   const { provider, model, messages, settings, onDelta, abortSignal, retryAttempt = 0 } = params;
   const format = provider.format || detectFormat(provider.baseUrl);
   const baseUrl = provider.baseUrl.replace(/\/+$/, '');
-  const apiKey = (provider.apiKey || '').trim();
+
+  // Support multiple API keys with auto-rotation on 429/401
+  const rawKeys = (provider.apiKey || '')
+    .split(/[,\n]+/)
+    .map((k) => k.trim())
+    .filter(Boolean);
+  const availableKeys = rawKeys.length > 0 ? rawKeys : [''];
+  const keyIndex = (params as any)._keyIndex || 0;
+  const currentKey = availableKeys[keyIndex % availableKeys.length];
 
   // Prepare trimmed context
   const trimmed = trimContext(messages, settings.contextLimit);
@@ -498,10 +506,11 @@ export async function executeChat(params: ChatExecuteParams): Promise<ChatExecut
   // If NSFW is ON: calculate dynamic jailbreak strategy rotation for retries
   let activeSystemPrompt = getActiveSystem(settings);
   if (settings.nsfw && retryAttempt > 0) {
-    const strategies: JailbreakStrategy[] = ['adaptive', 'deep_narrative', 'hypothetical_author', 'extreme_compliance'];
+    const strategies: JailbreakStrategy[] = ['extreme_compliance', 'adaptive', 'deep_narrative', 'hypothetical_author'];
     const rotatedStrategy = strategies[retryAttempt % strategies.length];
     const rotatedPrompt = JAILBREAK_PROMPTS[rotatedStrategy] || JAILBREAK_PROMPTS.extreme_compliance;
-    activeSystemPrompt = `${rotatedPrompt}\n\n${NSFW_CORE}`;
+    const userCustom = settings.systemNSFW.trim();
+    activeSystemPrompt = `${rotatedPrompt}\n\n${NSFW_CORE}${userCustom ? `\n\n[BỐI CẢNH / PHÂN VAI DO BẠN ĐẢM NHẬN]:\n${userCustom}` : ''}`;
   }
 
   // Tự động neo thời gian thực tế chính xác và chế độ tìm kiếm web (khắc phục AI bị giới hạn năm cũ)
@@ -523,7 +532,7 @@ export async function executeChat(params: ChatExecuteParams): Promise<ChatExecut
         }
 
         if (settings.nsfw) {
-          content += getDynamicMandateTail(m.content, retryAttempt);
+          content += getDynamicMandateTail(m.content, retryAttempt, true);
           if (retryAttempt > 0) {
             content += retryNudge(retryAttempt);
           }
@@ -551,51 +560,70 @@ export async function executeChat(params: ChatExecuteParams): Promise<ChatExecut
 
   let fullResponse = '';
 
-  if (format === 'gemini') {
-    fullResponse = await callGemini({
-      baseUrl,
-      apiKey,
-      model,
-      systemPrompt: activeSystemPrompt,
-      messages: payloadMessages,
-      settings,
-      stream,
-      onDelta,
-      abortSignal,
-      retryWithNoSafety: false,
-    });
-  } else if (format === 'anthropic') {
-    fullResponse = await callAnthropic({
-      baseUrl,
-      apiKey,
-      model,
-      systemPrompt: activeSystemPrompt,
-      messages: payloadMessages,
-      settings,
-      stream,
-      onDelta,
-      abortSignal,
-    });
-  } else {
-    // OpenAI format
-    fullResponse = await callOpenAI({
-      baseUrl,
-      apiKey,
-      model,
-      systemPrompt: activeSystemPrompt,
-      messages: payloadMessages,
-      settings,
-      stream,
-      onDelta,
-      abortSignal,
-    });
+  try {
+    if (format === 'gemini') {
+      fullResponse = await callGemini({
+        baseUrl,
+        apiKey: currentKey,
+        model,
+        systemPrompt: activeSystemPrompt,
+        messages: payloadMessages,
+        settings,
+        stream,
+        onDelta,
+        abortSignal,
+        retryWithNoSafety: false,
+      });
+    } else if (format === 'anthropic') {
+      fullResponse = await callAnthropic({
+        baseUrl,
+        apiKey: currentKey,
+        model,
+        systemPrompt: activeSystemPrompt,
+        messages: payloadMessages,
+        settings,
+        stream,
+        onDelta,
+        abortSignal,
+      });
+    } else {
+      // OpenAI format
+      fullResponse = await callOpenAI({
+        baseUrl,
+        apiKey: currentKey,
+        model,
+        systemPrompt: activeSystemPrompt,
+        messages: payloadMessages,
+        settings,
+        stream,
+        onDelta,
+        abortSignal,
+      });
+    }
+  } catch (apiErr: any) {
+    const errStr = apiErr?.message || String(apiErr);
+    const isRateLimitOrAuth =
+      errStr.includes('429') ||
+      errStr.includes('401') ||
+      errStr.includes('Rate Limit') ||
+      errStr.includes('quota') ||
+      errStr.includes('RESOURCE_EXHAUSTED');
+
+    if (isRateLimitOrAuth && availableKeys.length > 1 && keyIndex + 1 < availableKeys.length) {
+      console.warn(`[Multi-Key Rotation] API Key #${keyIndex + 1} gặp lỗi, tự động chuyển sang Key #${keyIndex + 2}/${availableKeys.length}...`);
+      return executeChat({
+        ...params,
+        _keyIndex: keyIndex + 1,
+      } as any);
+    }
+    throw apiErr;
   }
 
-  const checkSlice = fullResponse.slice(0, 350).toLowerCase();
+  const checkSlice = fullResponse.slice(0, 450).toLowerCase();
   const isRefusal =
     settings.nsfw &&
     (fullResponse.trim().length === 0 ||
-      (REFUSAL_REGEX.test(checkSlice) && fullResponse.length < 500));
+      (REFUSAL_REGEX.test(checkSlice) && fullResponse.length < 1200));
 
   return {
     fullText: fullResponse,
@@ -641,6 +669,7 @@ async function callOpenAI(opts: {
     temperature: settings.temperature,
     max_tokens: settings.maxTokens,
     stream,
+    ...(typeof settings.topP === 'number' ? { top_p: settings.topP } : {}),
   };
 
   const res = await apiFetch(
@@ -657,22 +686,112 @@ async function callOpenAI(opts: {
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
 
-    // Auto-Recovery for HTTP 402 (Insufficient credits or max_tokens exceeds affordability on OpenRouter/Together)
-    if (res.status === 402 || errText.includes('requires more credits') || errText.includes('can only afford')) {
-      const affordMatch = errText.match(/can only afford (\d+)/i);
-      const affordableTokens = affordMatch
-        ? Math.max(64, parseInt(affordMatch[1], 10) - 20)
-        : Math.max(128, Math.min(512, Math.floor((body.max_tokens || 2048) / 3)));
+    // Auto-Retry for HTTP 429 / 502 / 503 with exponential backoff
+    const retryCount = (opts as any)._retryCount || 0;
+    if ((res.status === 429 || res.status === 502 || res.status === 503) && retryCount < 2) {
+      const waitMs = Math.min(6000, 1200 * Math.pow(2, retryCount));
+      console.warn(`[Auto-Retry HTTP ${res.status}] Đang tự động thử lại lần ${retryCount + 1}/2 sau ${waitMs}ms...`);
+      await new Promise((r) => setTimeout(r, waitMs));
+      return callOpenAI({
+        ...opts,
+        _retryCount: retryCount + 1,
+      } as any);
+    }
 
-      if (affordableTokens && affordableTokens < (body.max_tokens || 8192) && !(opts as any)._retried402) {
-        console.warn(`[Auto-Recovery 402] Tự động giảm max_tokens xuống ${affordableTokens} để phù hợp với số dư tài khoản.`);
+    const isOpenRouter = baseUrl.toLowerCase().includes('openrouter.ai');
+
+    // Auto-Recovery for OpenRouter HTTP 404 / 400 (Model unavailable for free, slug changed, or deprecated)
+    if (isOpenRouter && (res.status === 404 || res.status === 400)) {
+      // 1. Check if OpenRouter suggests an alternative slug (e.g. "use this slug instead: google/gemini-3.1-flash-lite")
+      const slugMatch = errText.match(/use this slug instead:\s*([a-zA-Z0-9_\-\.\/:]+)/i);
+      if (slugMatch && !(opts as any)._retriedSlug) {
+        const replacementSlug = slugMatch[1].trim();
+        console.warn(`[Auto-Recovery OpenRouter 404] Model không khả dụng miễn phí. Tự động chuyển sang slug thay thế: ${replacementSlug}`);
         return callOpenAI({
           ...opts,
-          settings: {
-            ...settings,
-            maxTokens: affordableTokens,
-          },
-          _retried402: true,
+          model: replacementSlug,
+          _retriedSlug: true,
+        } as any);
+      }
+
+      // 2. If model ends with :free or message indicates free model is unavailable, auto-fallback to active free model
+      if ((model.endsWith(':free') || errText.includes('unavailable for free') || errText.includes('not found') || errText.includes('No such model')) && !(opts as any)._retriedFreeFallback) {
+        const fallbackFreeModel = model.toLowerCase().includes('gemini')
+          ? 'google/gemini-2.0-flash-exp:free'
+          : 'meta-llama/llama-3.3-70b-instruct:free';
+        if (model !== fallbackFreeModel) {
+          console.warn(`[Auto-Recovery OpenRouter 404] Model miễn phí không khả dụng. Tự động chuyển sang model miễn phí ổn định: ${fallbackFreeModel}`);
+          return callOpenAI({
+            ...opts,
+            model: fallbackFreeModel,
+            _retriedFreeFallback: true,
+          } as any);
+        }
+      }
+    }
+
+    // Auto-Recovery for HTTP 402 (Insufficient credits or max_tokens exceeds affordability on OpenRouter/Together)
+    if (res.status === 402 || errText.includes('requires more credits') || errText.includes('can only afford') || errText.includes('in_flight_budget_exhausted')) {
+      const affordMatch = errText.match(/can only afford (\d+)/i);
+      const isFreeModel = model.endsWith(':free');
+
+      // 1. Try reducing max_tokens if affordability is the issue
+      if (affordMatch && !(opts as any)._retried402) {
+        const affordableTokens = Math.max(16, parseInt(affordMatch[1], 10) - 5);
+        if (affordableTokens > 0) {
+          console.warn(`[Auto-Recovery 402] Tự động giảm max_tokens xuống ${affordableTokens} để phù hợp với số dư.`);
+          return callOpenAI({
+            ...opts,
+            settings: {
+              ...settings,
+              maxTokens: affordableTokens,
+            },
+            _retried402: true,
+          } as any);
+        }
+      }
+
+      // 2. If on OpenRouter and not yet using a free model variant, auto-fallback to free model
+      if (isOpenRouter && !isFreeModel && !(opts as any)._retriedFreeModel) {
+        const freeModel = (opts as any)._retriedSlug
+          ? 'google/gemini-2.0-flash-exp:free'
+          : `${model}:free`;
+        console.warn(`[Auto-Recovery 402] Tài khoản hết credits, tự động chuyển sang mô hình miễn phí: ${freeModel}`);
+        return callOpenAI({
+          ...opts,
+          model: freeModel,
+          _retriedFreeModel: true,
+        } as any);
+      }
+    }
+
+    // Auto-Recovery for HTTP 400 when model does not support 'system' message or custom 'temperature' (e.g. o1, o3-mini, certain reasoning models)
+    if (res.status === 400) {
+      const lowerErr = errText.toLowerCase();
+      // 1. Check if model rejects system role or developer instructions
+      if ((lowerErr.includes('system') || lowerErr.includes('developer')) && !(opts as any)._retriedSystemAsUser && systemPrompt) {
+        console.warn('[Auto-Recovery 400] Model không hỗ trợ system message riêng biệt. Tự động ghép system prompt vào user message...');
+        const updatedMsgs = messages.map((m, idx) => {
+          if (idx === 0) {
+            return { ...m, content: `[HƯỚNG DẪN HỆ THỐNG]:\n${systemPrompt}\n\n---\n${m.content}` };
+          }
+          return m;
+        });
+        return callOpenAI({
+          ...opts,
+          systemPrompt: '',
+          messages: updatedMsgs,
+          _retriedSystemAsUser: true,
+        } as any);
+      }
+
+      // 2. Check if model rejects custom temperature (e.g. o1 models require temperature = 1)
+      if (lowerErr.includes('temperature') && !(opts as any)._retriedTemp) {
+        console.warn('[Auto-Recovery 400] Model không hỗ trợ chỉnh temperature. Đang tự động thử lại với temperature = 1...');
+        return callOpenAI({
+          ...opts,
+          settings: { ...settings, temperature: 1 },
+          _retriedTemp: true,
         } as any);
       }
     }
@@ -787,6 +906,7 @@ async function callAnthropic(opts: {
     max_tokens: settings.maxTokens || 2048,
     temperature: settings.temperature,
     stream,
+    ...(typeof settings.topP === 'number' ? { top_p: settings.topP } : {}),
   };
   if (systemPrompt) {
     body.system = systemPrompt;
@@ -805,6 +925,18 @@ async function callAnthropic(opts: {
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
+
+    // Auto-Retry for HTTP 429 / 529 / 503 with exponential backoff
+    const retryCount = (opts as any)._retryCount || 0;
+    if ((res.status === 429 || res.status === 529 || res.status === 503) && retryCount < 2) {
+      const waitMs = Math.min(6000, 1200 * Math.pow(2, retryCount));
+      console.warn(`[Auto-Retry Anthropic HTTP ${res.status}] Đang tự động thử lại lần ${retryCount + 1}/2 sau ${waitMs}ms...`);
+      await new Promise((r) => setTimeout(r, waitMs));
+      return callAnthropic({
+        ...opts,
+        _retryCount: retryCount + 1,
+      } as any);
+    }
 
     // Auto-recovery for credit/token limit errors
     if (res.status === 402 || errText.includes('max_tokens') || errText.includes('credit')) {
@@ -939,6 +1071,7 @@ async function callGemini(opts: {
     generationConfig: {
       temperature: settings.temperature,
       maxOutputTokens: settings.maxTokens,
+      ...(typeof settings.topP === 'number' ? { topP: settings.topP } : {}),
     },
   };
 
@@ -1039,6 +1172,19 @@ async function callGemini(opts: {
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
+
+    // Auto-Retry for HTTP 429 / 503 with exponential backoff
+    const retryCount = (opts as any)._retryCount || 0;
+    if ((res.status === 429 || res.status === 503 || errText.includes('RESOURCE_EXHAUSTED')) && retryCount < 2) {
+      const waitMs = Math.min(6000, 1500 * Math.pow(2, retryCount));
+      console.warn(`[Auto-Retry Gemini HTTP ${res.status}] Đang tự động thử lại lần ${retryCount + 1}/2 sau ${waitMs}ms...`);
+      await new Promise((r) => setTimeout(r, waitMs));
+      return callGemini({
+        ...opts,
+        _retryCount: retryCount + 1,
+      } as any);
+    }
+
     // Check if error is model not found or restricted model (HTTP 404, 400, or 401 API_KEY_SERVICE_BLOCKED for internal models)
     if (
       (res.status === 404 || res.status === 400 || (res.status === 401 && (errText.includes('API_KEY_SERVICE_BLOCKED') || cleanModel.includes('antigravity'))) || errText.toLowerCase().includes('not found') || errText.toLowerCase().includes('is not supported')) &&

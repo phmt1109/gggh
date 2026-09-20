@@ -745,13 +745,6 @@ export default function App() {
               setManualModelNames((prev) => ({ ...prev, [activeProvider.id]: name }));
             }
           }}
-          filterChatModels={settings.filterChatModels}
-          onToggleFilterChat={() => {
-            setSettings((s) => ({ ...s, filterChatModels: !s.filterChatModels }));
-            triggerToast(
-              !settings.filterChatModels ? 'Đã bật lọc chỉ model Chat' : 'Đã tắt lọc: Hiển thị mọi model'
-            );
-          }}
           onRescanModels={() => {
             if (activeProvider) handleRescanProvider(activeProvider);
           }}
@@ -815,6 +808,7 @@ export default function App() {
           onStop={handleStopGeneration}
           isGenerating={isGenerating}
           disabled={!activeProvider}
+          isNsfw={settings.nsfw}
         />
       </main>
 

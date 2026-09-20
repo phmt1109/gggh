@@ -35,7 +35,7 @@ export const SysPanel: React.FC<SysPanelProps> = ({ settings, onUpdateSettings }
         placeholder={
           isNsfw
             ? 'Nhập chỉ dẫn câu chuyện 18+, mô tả nhân vật, lời thoại, bối cảnh nhập vai...'
-            : 'Nhập chỉ dẫn hệ thống thông thường (VD: Bạn là một trợ lý lập trình chuyên sâu...)'
+            : 'Nhập chỉ dẫn hệ thống (VD: Bạn là một chuyên gia lập trình & sáng tạo chuyên sâu...)'
         }
         value={currentValue}
         onChange={handleChange}
@@ -44,7 +44,7 @@ export const SysPanel: React.FC<SysPanelProps> = ({ settings, onUpdateSettings }
       <div className="sys-actions">
         <span className="hint">
           {isNsfw
-            ? '✓ Chế độ 18+: Đang bật (tự động áp dụng không kiểm duyệt)'
+            ? '🔞 Chế độ 18+: Đang áp dụng chỉ dẫn hệ thống trực tiếp vào lượt trò chuyện'
             : '✓ Tự động gửi kèm trong các lượt trò chuyện'}
         </span>
         <button
@@ -60,3 +60,4 @@ export const SysPanel: React.FC<SysPanelProps> = ({ settings, onUpdateSettings }
     </div>
   );
 };
+

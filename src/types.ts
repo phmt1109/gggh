@@ -39,6 +39,7 @@ export type JailbreakStrategy = 'adaptive' | 'deep_narrative' | 'hypothetical_au
 
 export interface Settings {
   temperature: number;
+  topP: number; // 0.00 đến 1.00 (Nucleus sampling)
   maxTokens: number;
   stream: boolean;
   filterChatModels: boolean;

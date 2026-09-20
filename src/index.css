@@ -632,6 +632,7 @@ input:focus, select:focus, textarea:focus {
   padding: 0 18px;
   border-radius: 12px;
   box-shadow: 0 0 14px var(--indigo-glow);
+  transition: all 0.2s var(--ease);
 }
 .btn-send:hover {
   filter: brightness(1.1);
@@ -640,6 +641,26 @@ input:focus, select:focus, textarea:focus {
 .btn-send:disabled {
   opacity: 0.4;
   box-shadow: none;
+}
+.btn-send.nsfw-active {
+  background: linear-gradient(135deg, #ec4899, #db2777);
+  border-color: rgba(244, 114, 182, 0.4);
+  box-shadow: 0 0 16px rgba(236, 72, 153, 0.55);
+}
+.btn-send.nsfw-active:hover {
+  filter: brightness(1.12);
+  box-shadow: 0 0 24px rgba(236, 72, 153, 0.8);
+}
+.btn-send.nsfw-active:active:not(:disabled) {
+  animation: nsfwSubtleVibrate 0.22s ease-in-out;
+}
+@keyframes nsfwSubtleVibrate {
+  0% { transform: translate(0, 0) scale(0.97); }
+  20% { transform: translate(-1.5px, 0.5px) scale(0.97); }
+  40% { transform: translate(1.5px, -0.5px) scale(0.97); }
+  60% { transform: translate(-1px, 0.5px) scale(0.97); }
+  80% { transform: translate(1px, -0.5px) scale(0.97); }
+  100% { transform: translate(0, 0) scale(0.97); }
 }
 .btn-stop {
   background: rgba(239, 68, 68, 0.2);

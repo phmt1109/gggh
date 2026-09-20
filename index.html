@@ -3,6 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests" />
+    <script>
+      // Ép buộc chuyển hướng sang kết nối bảo mật HTTPS (SSL/TLS) trên mọi máy chủ web
+      (function() {
+        try {
+          if (typeof window !== 'undefined' && window.location) {
+            var proto = window.location.protocol;
+            var host = window.location.hostname;
+            // Chỉ bỏ qua trên máy tính cá nhân nội bộ (localhost, 127.0.0.1, file://)
+            var isLocal = host === 'localhost' || host === '127.0.0.1' || host === '' || host.indexOf('192.168.') === 0 || host.indexOf('10.') === 0 || proto === 'file:';
+            if (proto === 'http:' && !isLocal) {
+              window.location.replace('https://' + window.location.host + window.location.pathname + window.location.search + window.location.hash);
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
     <title>AI</title>
     <meta name="description" content="Ứng dụng web BYOK ghép API key của nhiều nhà cung cấp AI, tự động dò model, chế độ 18+ không kiểm duyệt cho mọi mô hình hàng đầu thế giới." />
     <meta property="og:title" content="AI" />

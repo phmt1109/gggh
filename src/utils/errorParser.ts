@@ -87,9 +87,9 @@ export function parseApiError(rawError: string): ParsedApiError {
       summary = 'Bị từ chối quyền truy cập hoặc tài khoản chưa kích hoạt/nạp tiền (403 Forbidden).';
     } else if (httpCode === 'HTTP 404' || lower.includes('404') || lower.includes('not found')) {
       summary = 'Địa chỉ Base URL không tồn tại hoặc sai đường dẫn API (404 Not Found).';
-    } else if (httpCode === 'HTTP 402' || lower.includes('402') || lower.includes('requires more credits') || lower.includes('can only afford')) {
-      summary = 'Số dư tài khoản API không đủ hoặc giá trị Max Tokens vượt quá số dư còn lại (HTTP 402).';
-      hint = 'Ứng dụng đã tự động tối ưu số lượng tokens để gửi câu hỏi. Bạn có thể giảm tham số Max Tokens trên thanh SettingsBar hoặc nạp thêm credits.';
+    } else if (httpCode === 'HTTP 402' || lower.includes('402') || lower.includes('requires more credits') || lower.includes('can only afford') || lower.includes('in_flight_budget_exhausted')) {
+      summary = 'Tài khoản OpenRouter / API hết credits hoặc số dư không đủ cho số lượng tokens yêu cầu (HTTP 402).';
+      hint = 'Giải pháp: 1. Hãy chọn các model miễn phí có đuôi ":free" trên OpenRouter (ví dụ: deepseek/deepseek-chat:free, meta-llama/llama-3.3-70b-instruct:free, google/gemini-2.0-flash-exp:free). 2. Giảm Max Tokens trên thanh Settings. 3. Nạp thêm credits tại openrouter.ai/settings/credits.';
     } else if (httpCode === 'HTTP 429' || lower.includes('429') || lower.includes('quota') || lower.includes('rate limit')) {
       summary = 'Đã hết hạn mức gọi (Quota) hoặc bị nghẽn tần suất (429 Rate Limit / Quota Exceeded).';
     } else if (lower.includes('failed to fetch') || lower.includes('cors') || lower.includes('networkerror')) {

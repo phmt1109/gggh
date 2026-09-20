@@ -12,8 +12,6 @@ interface TopbarProps {
   onToggleManualModel: () => void;
   manualModelName: string;
   onChangeManualModelName: (name: string) => void;
-  filterChatModels: boolean;
-  onToggleFilterChat: () => void;
   onRescanModels: () => void;
   isScanning: boolean;
   statusInfo: string;
@@ -30,8 +28,6 @@ export const Topbar: React.FC<TopbarProps> = ({
   onToggleManualModel,
   manualModelName,
   onChangeManualModelName,
-  filterChatModels,
-  onToggleFilterChat,
   onRescanModels,
   isScanning,
   statusInfo,
@@ -114,16 +110,6 @@ export const Topbar: React.FC<TopbarProps> = ({
         onClick={onToggleManualModel}
       >
         ✏️
-      </button>
-
-      <button
-        id="toggleFilterChatBtn"
-        className="icon-btn"
-        title={filterChatModels ? 'Đang bật: Lọc chỉ model Chat (nhấn để hiện tất cả)' : 'Đang tắt: Hiển thị tất cả model (nhấn để lọc chat)'}
-        style={{ color: filterChatModels ? 'var(--accent2)' : 'var(--muted)' }}
-        onClick={onToggleFilterChat}
-      >
-        💬
       </button>
 
       <button

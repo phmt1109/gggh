@@ -7,6 +7,7 @@ interface ComposerProps {
   onStop: () => void;
   isGenerating: boolean;
   disabled: boolean;
+  isNsfw?: boolean;
 }
 
 export const Composer: React.FC<ComposerProps> = ({
@@ -16,6 +17,7 @@ export const Composer: React.FC<ComposerProps> = ({
   onStop,
   isGenerating,
   disabled,
+  isNsfw = false,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -63,7 +65,7 @@ export const Composer: React.FC<ComposerProps> = ({
         <button
           id="sendBtn"
           type="button"
-          className="btn-send"
+          className={`btn-send ${isNsfw ? 'nsfw-active' : ''}`}
           onClick={onSend}
           disabled={disabled || !input.trim()}
           title="Gửi tin nhắn"
