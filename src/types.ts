@@ -48,6 +48,15 @@ export interface ChatMessage {
 export type NetworkTransport = 'direct' | 'local_ip';
 export type JailbreakStrategy = 'adaptive' | 'deep_narrative' | 'hypothetical_author' | 'extreme_compliance';
 
+export interface PersonaProfile {
+  id: string;
+  name: string;
+  description: string;
+  category: 'roleplay' | 'story' | 'creative' | 'technical' | 'reasoning' | 'custom';
+  systemPrompt: string;
+  isNsfwMode?: boolean;
+}
+
 export interface Settings {
   temperature: number;
   topP: number; // 0.00 đến 1.00 (Nucleus sampling)

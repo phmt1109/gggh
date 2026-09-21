@@ -148,12 +148,15 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
       {/* Ongoing streaming response or thinking indicator */}
       {isGenerating && (
-        <div className="msg assistant">
+        <div className="msg assistant streaming">
           <div className="msg-inner">
             <div className="msg-head">
-              <span>⚡ TRỢ LÝ AI</span>
-              <span style={{ color: 'var(--accent2)', fontSize: 11, marginLeft: 8 }}>
-                ● Đang tạo phản hồi...
+              <span className="flex items-center gap-1.5">
+                <span className="live-pulse-dot" />
+                ⚡ TRỢ LÝ AI
+              </span>
+              <span style={{ color: 'var(--accent2)', fontSize: 11, marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {isThinking && !streamingText ? 'Đang suy nghĩ...' : 'Đang gửi trực tiếp...'}
               </span>
             </div>
 
@@ -163,6 +166,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                   <i />
                   <i />
                   <i />
+                  <span className="thinking-text">Đang kết nối và chuẩn bị câu trả lời...</span>
                 </div>
               ) : (
                 <>
