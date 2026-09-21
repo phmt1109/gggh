@@ -14,6 +14,7 @@ export interface Provider {
   status: ProviderStatus;
   statusText?: string;
   lastChecked?: number;
+  pinnedModel?: string; // Model được người dùng chọn/ghim cố định, không bao giờ tự ý reset khi dò lại
 }
 
 export interface Preset {
@@ -26,12 +27,22 @@ export interface Preset {
   isCustom?: boolean;
 }
 
+export interface FileAttachment {
+  filename: string;
+  content: string;
+  language?: string;
+  isBundle?: boolean;
+  mimeType?: string;
+  description?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
   isError?: boolean;
+  fileAttachments?: FileAttachment[];
 }
 
 export type NetworkTransport = 'direct' | 'local_ip';

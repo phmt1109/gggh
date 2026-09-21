@@ -99,7 +99,7 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
 
       <label
         className={`switch nsfw ctrl ${settings.nsfw ? 'active-nsfw' : ''}`}
-        title="Bật/tắt chế độ 18+ không kiểm duyệt (Tự động bypass bộ lọc và cam kết trả lời trực diện)"
+        title="Bật/tắt chế độ sáng tạo tự do mở rộng (Creative Mode)"
         style={{
           background: settings.nsfw ? 'linear-gradient(135deg, rgba(255, 51, 102, 0.22), rgba(255, 107, 139, 0.15))' : 'transparent',
           border: settings.nsfw ? '1px solid #ff4d79' : '1px solid transparent',

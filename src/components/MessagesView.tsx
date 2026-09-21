@@ -1,6 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { ChatMessage } from '../types';
 import { parseAndRenderMessage } from '../utils/markdownParser';
+import { FileAttachmentCard } from './FileAttachmentCard';
+import { isDownloadOrFileRequest } from '../constants';
+import { resolveFileAttachmentsFromConversation } from '../utils/exportUtils';
 
 interface MessagesViewProps {
   messages: ChatMessage[];
@@ -38,7 +41,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
           <ol>
             <li>Chọn hoặc thêm nhà cung cấp ở <code>Menu bên trái</code></li>
             <li>Dán API key và nhấn <code>Dò model</code></li>
-            <li>Bật <code>🔞 18+</code> để kích hoạt chế độ sáng tạo tự do cho mọi thể loại</li>
+            <li>Bật <code>🔞 18+</code> để kích hoạt chế độ sáng tạo mở rộng</li>
           </ol>
         </div>
       </div>
@@ -56,6 +59,22 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
         const isUser = m.role === 'user';
         const isError = m.isError;
         const isLastAssistant = !isUser && idx === messages.length - 1;
+
+        // Xác định các file đính kèm: từ m.fileAttachments hoặc tự động suy luận từ ngữ cảnh yêu cầu tải file
+        const effectiveAttachments = [...(m.fileAttachments || [])];
+        if (effectiveAttachments.length === 0 && !isUser && !isError) {
+          const prevMsg = messages[idx - 1];
+          if (prevMsg && prevMsg.role === 'user' && isDownloadOrFileRequest(prevMsg.content)) {
+            const resolvedList = resolveFileAttachmentsFromConversation(
+              prevMsg.content,
+              m.content,
+              messages.slice(0, idx)
+            );
+            if (resolvedList.length > 0) {
+              effectiveAttachments.push(...resolvedList);
+            }
+          }
+        }
 
         return (
           <div
@@ -79,7 +98,19 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                     <pre className="chat-error-log-box">{m.content}</pre>
                   </div>
                 ) : (
-                  renderFormattedBody(m.content)
+                  <>
+                    {renderFormattedBody(m.content)}
+                    {effectiveAttachments.map((file, fileIdx) => (
+                      <FileAttachmentCard
+                        key={`file-${m.id}-${fileIdx}`}
+                        filename={file.filename}
+                        content={file.content}
+                        language={file.language}
+                        isBundle={file.isBundle}
+                        mimeType={file.mimeType}
+                      />
+                    ))}
+                  </>
                 )}
               </div>
 
@@ -91,6 +122,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                 >
                   📋 Sao chép
                 </button>
+
                 {isLastAssistant && !isGenerating && (
                   <button
                     type="button"
@@ -100,6 +132,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                     🔄 Thử lại
                   </button>
                 )}
+
                 <button
                   type="button"
                   title="Xoá tin nhắn này"

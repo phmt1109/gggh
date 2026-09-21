@@ -11,7 +11,6 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language = '', code }) => 
 
   const cleanLang = language.trim().toLowerCase();
   const isBash = ['bash', 'sh', 'shell', 'zsh', 'terminal', 'cmd', 'powershell'].includes(cleanLang);
-
   const displayLang = cleanLang || (isBash ? 'bash' : 'code');
 
   const handleCopy = async () => {
@@ -38,10 +37,10 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language = '', code }) => 
 
   return (
     <div className="code-block-wrapper my-3 overflow-hidden rounded-xl border border-white/10 bg-[#090d1a]/90 backdrop-blur-md shadow-lg shadow-black/40">
-      {/* Code block header */}
+      {/* Code block header: macOS dots, language label & copy button */}
       <div className="flex items-center justify-between px-3.5 py-2 bg-white/[0.04] border-b border-white/[0.08] select-none text-xs">
         <div className="flex items-center gap-2.5">
-          {/* iOS / macOS style glass dots */}
+          {/* macOS style dots */}
           <div className="flex items-center gap-1.5 opacity-70">
             <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]/80 inline-block shadow-sm" />
             <span className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]/80 inline-block shadow-sm" />
@@ -59,28 +58,30 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language = '', code }) => 
         </div>
 
         {/* Copy button */}
-        <button
-          type="button"
-          onClick={handleCopy}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 ${
-            copied
-              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm shadow-emerald-500/20'
-              : 'bg-white/[0.07] text-slate-300 hover:text-white hover:bg-white/[0.14] border border-white/10'
-          }`}
-          title="Sao chép toàn bộ khối mã lệnh này"
-        >
-          {copied ? (
-            <>
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Đã chép!</span>
-            </>
-          ) : (
-            <>
-              <Copy className="w-3.5 h-3.5" />
-              <span>Sao chép</span>
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleCopy}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 ${
+              copied
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm shadow-emerald-500/20'
+                : 'bg-white/[0.07] text-slate-300 hover:text-white hover:bg-white/[0.14] border border-white/10'
+            }`}
+            title="Sao chép toàn bộ khối mã lệnh này"
+          >
+            {copied ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Đã chép!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                <span>Sao chép</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Code body */}

@@ -9,6 +9,7 @@ import {
   exportStateAsJson,
   importStateFromJson,
 } from './utils/storage';
+import { resolveFileAttachmentsFromConversation } from './utils/exportUtils';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
 import { SettingsBar } from './components/SettingsBar';
@@ -157,8 +158,15 @@ export default function App() {
   // Filtered models for active provider
   const availableModels = useMemo(() => {
     if (!activeProvider) return [];
-    return filterModels(activeProvider.models || [], settings.filterChatModels);
-  }, [activeProvider, settings.filterChatModels]);
+    const raw = activeProvider.models || [];
+    const filtered = filterModels(raw, settings.filterChatModels);
+    // BẢO VỆ: Nếu đã chọn hoặc đã ghim model, luôn giữ model đó trong danh sách chọn
+    const activeChoice = selectedModels[activeProvider.id] || activeProvider.pinnedModel;
+    if (activeChoice && !filtered.includes(activeChoice)) {
+      return [activeChoice, ...filtered];
+    }
+    return filtered;
+  }, [activeProvider, settings.filterChatModels, selectedModels]);
 
   // Current selected model name for active provider
   const currentModelName = useMemo(() => {
@@ -168,7 +176,7 @@ export default function App() {
     if (isManual) {
       return manualModelNames[provId] || '';
     }
-    const selected = selectedModels[provId];
+    const selected = selectedModels[provId] || activeProvider.pinnedModel;
     if (selected) {
       return selected;
     }
@@ -210,11 +218,11 @@ export default function App() {
         )
       );
 
-      // QUAN TRỌNG: Giữ nguyên model người dùng đang chọn, không bị đổi về model khác
+      // QUAN TRỌNG: Tuyệt đối giữ nguyên model đang chọn hoặc model ghim cố định, không reset về model mới nhất đắt tiền
       setSelectedModels((prev) => {
-        const currentModel = prev[prov.id];
-        if (currentModel) {
-          return prev; // Giữ nguyên 100% model đang dùng
+        const currentChoice = prev[prov.id] || prov.pinnedModel;
+        if (currentChoice) {
+          return { ...prev, [prov.id]: currentChoice }; // Giữ nguyên 100%
         }
         const filtered = filterModels(foundModels, settings.filterChatModels);
         const defaultChoice = filtered[0] || foundModels[0] || '';
@@ -253,9 +261,9 @@ export default function App() {
           )
         );
         setSelectedModels((prev) => {
-          const currentModel = prev[prov.id];
-          if (currentModel) {
-            return prev; // Giữ nguyên model đang dùng
+          const currentChoice = prev[prov.id] || prov.pinnedModel;
+          if (currentChoice) {
+            return { ...prev, [prov.id]: currentChoice }; // Giữ nguyên model đang dùng
           }
           return { ...prev, [prov.id]: fallbackList[0] };
         });
@@ -291,6 +299,7 @@ export default function App() {
     defaultModel?: string;
   }) => {
     const hasTestedModels = Array.isArray(data.detectedModels) && data.detectedModels.length > 0;
+    const pinnedModel = data.defaultModel?.trim() || (editingProvider ? editingProvider.pinnedModel : undefined);
 
     if (editingProvider) {
       // Update existing provider
@@ -312,16 +321,17 @@ export default function App() {
                 models: updatedModels,
                 status: updatedStatus,
                 statusText: updatedStatusText,
+                pinnedModel: pinnedModel,
               }
             : p
         )
       );
 
-      if (data.defaultModel) {
-        setSelectedModels((prev) => ({ ...prev, [editingProvider.id]: data.defaultModel! }));
+      if (pinnedModel) {
+        setSelectedModels((prev) => ({ ...prev, [editingProvider.id]: pinnedModel }));
       }
 
-      triggerToast(`Đã cập nhật nhà cung cấp: ${data.name}`);
+      triggerToast(`Đã cập nhật: ${data.name}${pinnedModel ? ` (Ghim: ${pinnedModel})` : ''}`);
 
       // If user did not test connection in modal but provided an API key, trigger scan
       if (!hasTestedModels && data.apiKey) {
@@ -331,6 +341,7 @@ export default function App() {
           baseUrl: data.baseUrl,
           format: data.format,
           apiKey: data.apiKey,
+          pinnedModel: pinnedModel,
         };
         setTimeout(() => handleRescanProvider(provToScan), 300);
       }
@@ -348,17 +359,18 @@ export default function App() {
         statusText: hasTestedModels
           ? `Đã tìm thấy ${data.detectedModels!.length} mô hình AI.`
           : undefined,
+        pinnedModel: pinnedModel,
       };
       setProviders((prev) => [...prev, newProv]);
       setActiveProviderId(newId);
 
-      if (data.defaultModel) {
-        setSelectedModels((prev) => ({ ...prev, [newId]: data.defaultModel! }));
+      if (pinnedModel) {
+        setSelectedModels((prev) => ({ ...prev, [newId]: pinnedModel }));
       } else if (hasTestedModels && data.detectedModels![0]) {
         setSelectedModels((prev) => ({ ...prev, [newId]: data.detectedModels![0] }));
       }
 
-      triggerToast(`Đã thêm nhà cung cấp: ${data.name}`);
+      triggerToast(`Đã thêm: ${data.name}${pinnedModel ? ` (Ghim: ${pinnedModel})` : ''}`);
 
       // If user supplied an API key and wasn't tested in modal, automatically trigger model scan
       if (!hasTestedModels && data.apiKey) {
@@ -449,7 +461,7 @@ export default function App() {
     triggerToast('Đã tải xuống file sao lưu JSON!');
   };
 
-  // Import backup JSON file
+  // Import backup JSON / HTML file
   const handleImportBackup = async (file: File) => {
     try {
       const imported = await importStateFromJson(file);
@@ -646,11 +658,20 @@ export default function App() {
       }
 
       // Valid response received! Save to conversation
+      const finalContent = result.fullText || currentAccumulated || '(Phản hồi rỗng)';
+
+      // Kiểm tra nếu tin nhắn yêu cầu gần nhất của người dùng là yêu cầu tải file
+      const lastUserMsg = [...history].reverse().find((m) => m.role === 'user');
+      const attachedFiles = lastUserMsg
+        ? resolveFileAttachmentsFromConversation(lastUserMsg.content, finalContent, history)
+        : [];
+
       const finalAssistantMsg: ChatMessage = {
         id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         role: 'assistant',
-        content: result.fullText || currentAccumulated || '(Phản hồi rỗng)',
+        content: finalContent,
         timestamp: Date.now(),
+        fileAttachments: attachedFiles.length > 0 ? attachedFiles : undefined,
       };
 
       setConversations((prev) => ({
@@ -743,6 +764,10 @@ export default function App() {
           onSelectModel={(model) => {
             if (activeProvider) {
               setSelectedModels((prev) => ({ ...prev, [activeProvider.id]: model }));
+              // Khóa cố định ngay vào cấu hình provider để tránh bị reset khi bấm dò lại
+              setProviders((prev) =>
+                prev.map((p) => (p.id === activeProvider.id ? { ...p, pinnedModel: model } : p))
+              );
             }
           }}
           isManualModel={isManual}

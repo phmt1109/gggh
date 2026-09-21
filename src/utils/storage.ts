@@ -131,23 +131,37 @@ export function exportStateAsJson(state: AppState): void {
 }
 
 /**
- * Import state from a JSON file
+ * Import state from a JSON file hoặc file HTML gộp (HTML bundle)
  */
 export function importStateFromJson(file: File): Promise<AppState> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const parsed = JSON.parse(e.target?.result as string);
+        const text = (e.target?.result as string) || '';
+        let jsonStr = text;
+
+        // Nếu là file HTML gộp, trích xuất chuỗi JSON từ thẻ <script id="ai-app-state-data">
+        if (file.name.endsWith('.html') || text.includes('id="ai-app-state-data"') || text.includes('<!DOCTYPE html>')) {
+          const match = text.match(/<script\s+id=["']ai-app-state-data["'][\s\S]*?>([\s\S]*?)<\/script>/i);
+          if (match && match[1]) {
+            jsonStr = match[1].trim();
+          } else {
+            throw new Error('Không tìm thấy khối dữ liệu sao lưu hợp lệ trong file HTML này');
+          }
+        }
+
+        const parsed = JSON.parse(jsonStr);
         if (!parsed || typeof parsed !== 'object') {
-          throw new Error('File không hợp lệ');
+          throw new Error('Cấu trúc dữ liệu không hợp lệ');
         }
         resolve(parsed);
-      } catch (err) {
-        reject(new Error('Dữ liệu JSON không hợp lệ hoặc file bị lỗi'));
+      } catch (err: any) {
+        reject(new Error(err?.message || 'Dữ liệu không hợp lệ hoặc file bị lỗi'));
       }
     };
     reader.onerror = () => reject(new Error('Không thể đọc file'));
     reader.readAsText(file);
   });
 }
+

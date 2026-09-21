@@ -61,13 +61,14 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       setApiKey(editingProvider.apiKey || '');
       setSelectedPresetId('custom');
       setSaveAsPreset(false);
+      const initialChoice =
+        editingProvider.pinnedModel ||
+        (currentModel && editingProvider.models?.includes(currentModel)
+          ? currentModel
+          : (currentModel || editingProvider.models?.[0] || ''));
+      setSelectedDefaultModel(initialChoice);
       if (editingProvider.models && editingProvider.models.length > 0) {
         setTestResult({ status: 'ok', models: editingProvider.models });
-        // Ưu tiên giữ nguyên model người dùng đang chọn
-        const initialChoice = currentModel && editingProvider.models.includes(currentModel)
-          ? currentModel
-          : (currentModel || editingProvider.models[0] || '');
-        setSelectedDefaultModel(initialChoice);
       }
     } else {
       // Default to OpenAI preset for convenient quickstart
@@ -184,7 +185,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
       apiKey: apiKey.trim(),
       saveAsPreset,
       detectedModels: testResult.status === 'ok' ? testResult.models : undefined,
-      defaultModel: testResult.status === 'ok' ? selectedDefaultModel : undefined,
+      defaultModel: selectedDefaultModel.trim() || undefined,
     });
   };
 
@@ -378,48 +379,84 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
               </div>
             )}
 
-            {testResult.status === 'ok' && testResult.models && (
-              <div
-                style={{
-                  marginTop: 10,
-                  padding: '12px 14px',
-                  borderRadius: 8,
-                  background: 'rgba(34, 197, 94, 0.08)',
-                  border: '1px solid rgba(34, 197, 94, 0.35)',
-                  fontSize: 12.5,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <strong style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>✅ KẾT NỐI THÀNH CÔNG!</span>
-                    <span>(Đã tìm thấy {testResult.models.length} model)</span>
-                  </strong>
-                </div>
+            {(() => {
+              const availableModalModels =
+                testResult.status === 'ok' && testResult.models && testResult.models.length > 0
+                  ? testResult.models
+                  : editingProvider?.models && editingProvider.models.length > 0
+                  ? editingProvider.models
+                  : [];
 
-                <div style={{ marginTop: 6 }}>
-                  <label htmlFor="testDefaultModelSelect" style={{ fontSize: 11.5, color: 'var(--fg2)', display: 'block', marginBottom: 4 }}>
-                    Mô hình AI mặc định sẽ chọn dùng:
-                  </label>
-                  <select
-                    id="testDefaultModelSelect"
-                    value={selectedDefaultModel}
-                    onChange={(e) => setSelectedDefaultModel(e.target.value)}
-                    style={{ width: '100%', fontSize: 13 }}
-                  >
-                    {selectedDefaultModel && !testResult.models.includes(selectedDefaultModel) && (
-                      <option key={selectedDefaultModel} value={selectedDefaultModel}>
-                        {selectedDefaultModel} (Đang dùng)
-                      </option>
-                    )}
-                    {testResult.models.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
+              if (availableModalModels.length === 0) return null;
+
+              return (
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: '12px 14px',
+                    borderRadius: 8,
+                    background: testResult.status === 'ok' ? 'rgba(34, 197, 94, 0.08)' : 'var(--bg3)',
+                    border: testResult.status === 'ok' ? '1px solid rgba(34, 197, 94, 0.35)' : '1px solid var(--line)',
+                    fontSize: 12.5,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <strong
+                      style={{
+                        color: testResult.status === 'ok' ? 'var(--success)' : 'var(--fg)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <span>{testResult.status === 'ok' ? '✅ KẾT NỐI THÀNH CÔNG!' : '🔒 MÔ HÌNH GHIM CỐ ĐỊNH'}</span>
+                      <span>(Có {availableModalModels.length} model)</span>
+                    </strong>
+                  </div>
+
+                  <div style={{ marginTop: 6 }}>
+                    <label
+                      htmlFor="testDefaultModelSelect"
+                      style={{ fontSize: 11.5, color: 'var(--fg2)', display: 'block', marginBottom: 4 }}
+                    >
+                      Chọn mô hình AI ghim cố định (Không bao giờ tự ý nhảy model khi dò lại):
+                    </label>
+                    <select
+                      id="testDefaultModelSelect"
+                      value={selectedDefaultModel}
+                      onChange={(e) => setSelectedDefaultModel(e.target.value)}
+                      style={{ width: '100%', fontSize: 13 }}
+                    >
+                      {selectedDefaultModel && !availableModalModels.includes(selectedDefaultModel) && (
+                        <option key={selectedDefaultModel} value={selectedDefaultModel}>
+                          {selectedDefaultModel} (Đang dùng)
+                        </option>
+                      )}
+                      {availableModalModels.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                    <div
+                      style={{
+                        marginTop: 6,
+                        fontSize: 11.5,
+                        color: 'var(--fg2)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5,
+                      }}
+                    >
+                      <span>🔒</span>
+                      <span>
+                        Model này được lưu cố định. Khi bấm nút dò lại, hệ thống sẽ KHÔNG tự nhảy sang model khác đắt tiền.
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {testResult.status === 'err' && testResult.error && (
               <div style={{ marginTop: 10 }}>

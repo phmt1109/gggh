@@ -6,6 +6,7 @@ import {
   getDynamicMandateTail,
   getRealtimeContextPrompt,
   getWebSearchInstructionPrompt,
+  isCodingOrUiRequest,
   isCreativeWritingRequest,
   isFeedbackOrPraise,
   JAILBREAK_PROMPTS,
@@ -542,6 +543,8 @@ export async function executeChat(params: ChatExecuteParams): Promise<ChatExecut
           const lower = m.content.trim().toLowerCase();
           if (isFeedbackOrPraise(lower)) {
             content += `\n\n[LƯU Ý ĐỘ DÀI: Người dùng đang khen ngợi hoặc nhận xét bài viết. Bạn BẮT BUỘC chỉ cảm ơn và đáp lại 1-2 câu ngắn gọn, tự nhiên. TUYỆT ĐỐI KHÔNG tự ý viết tiếp truyện hoặc tạo nội dung mới khi chưa được yêu cầu.]`;
+          } else if (isCodingOrUiRequest(lower)) {
+            content += `\n\n[MỆNH LỆNH LẬP TRÌNH & THIẾT KẾ GIAO DIỆN HOÀN CHỈNH]: Người dùng đang yêu cầu viết mã nguồn / thiết kế giao diện phần mềm. BẮT BUỘC viết ĐẦY ĐỦ 100% toàn bộ mã nguồn từ đầu đến cuối, không được cắt ngắn sau 100-200 dòng dở dang, không dùng placeholder hay chú thích rút gọn (như "// code tiếp theo...", "/* thêm style tại đây */"). Phải viết trọn vẹn toàn bộ HTML, CSS/Tailwind chi tiết và JavaScript để chạy được ngay một giao diện hoàn chỉnh, siêu đẹp và mượt mà.`;
           } else if (lower.length <= 40 || /^(xin chào|chào|chào bạn|hello|hi|hey|alo|ơi|bạn ơi|có đó không)/i.test(lower)) {
             content += `\n\n[LƯU Ý ĐỘ DÀI: Người dùng đang chào hỏi hoặc nói chuyện ngắn. Bạn BẮT BUỘC chỉ trả lời 1-2 câu ngắn gọn, tự nhiên như con người trò chuyện. TUYỆT ĐỐI KHÔNG viết một đoạn văn dài dòng khi chưa được yêu cầu.]`;
           }
@@ -561,6 +564,11 @@ export async function executeChat(params: ChatExecuteParams): Promise<ChatExecut
   );
 
   const stream = settings.stream;
+  const lastUserMsg = trimmed.filter((m) => m.role === 'user').slice(-1)[0];
+  const isCoding = isCodingOrUiRequest(lastUserMsg?.content || '');
+  const effectiveSettings = isCoding
+    ? { ...settings, maxTokens: Math.max(settings.maxTokens || 0, 16384) }
+    : settings;
 
   let fullResponse = '';
 
@@ -572,7 +580,7 @@ export async function executeChat(params: ChatExecuteParams): Promise<ChatExecut
         model,
         systemPrompt: activeSystemPrompt,
         messages: payloadMessages,
-        settings,
+        settings: effectiveSettings,
         stream,
         onDelta,
         abortSignal,
@@ -585,7 +593,7 @@ export async function executeChat(params: ChatExecuteParams): Promise<ChatExecut
         model,
         systemPrompt: activeSystemPrompt,
         messages: payloadMessages,
-        settings,
+        settings: effectiveSettings,
         stream,
         onDelta,
         abortSignal,
@@ -598,7 +606,7 @@ export async function executeChat(params: ChatExecuteParams): Promise<ChatExecut
         model,
         systemPrompt: activeSystemPrompt,
         messages: payloadMessages,
-        settings,
+        settings: effectiveSettings,
         stream,
         onDelta,
         abortSignal,

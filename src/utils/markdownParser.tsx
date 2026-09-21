@@ -24,8 +24,10 @@ export function sanitizeMarkdown(text: string): string {
 
   // Xoá dấu ** trơ trọi đứng một mình được bao quanh bởi khoảng trắng, đầu dòng hoặc dấu câu
   res = res.replace(/(^|[\s\n])\*\*(?=[\s\n.,!?;:]|$)/g, '$1');
+  res = res.replace(/\*\*([.,!?;:])/g, '$1');
+  res = res.replace(/([.,!?;:])\*\*/g, '$1');
 
-  // Nếu số lượng ** là số lẻ, loại bỏ dấu ** đơn côi cuối cùng
+  // Nếu số lượng ** là số lẻ hoặc có dấu ** mồ côi không có cặp đóng
   const boldMatches = res.match(/\*\*/g);
   if (boldMatches && boldMatches.length % 2 !== 0) {
     const lastIdx = res.lastIndexOf('**');
@@ -34,12 +36,19 @@ export function sanitizeMarkdown(text: string): string {
     }
   }
 
-  // 2. Xử lý dấu thăng ## hoặc # (headings) trơ trọi hoặc vô cớ
+  // 2. Xử lý triệt để dấu thăng ## hoặc # (headings) trơ trọi, lỗi ## trước số thứ tự (ví dụ: ## 1., ## 2., ## 1 nhỏ)
   // Xoá các dòng chỉ chứa toàn dấu # hoặc ## trơ trọi không có chữ/tiêu đề
   res = res.replace(/^[ \t]*#{1,6}[ \t]*$/gm, '');
 
+  // Đảm bảo xuống dòng tách biệt trước các đề mục nếu model viết dính liền trong câu (ví dụ: "...xong. ## 1. Phần mở đầu" -> xuống 2 dòng)
+  res = res.replace(/([^\n])\s*(#{1,6}\s*(?:\d+[.)]|\b(?:phần|mục|bước|chương)\b))/gi, '$1\n\n$2');
+
+  // Loại bỏ hoàn toàn ký tự ## hoặc # đứng trước số thứ tự đề mục (ví dụ: "## 1. " -> "1. ", "## 2. " -> "2. ", "### 1 nhỏ" -> "1 nhỏ")
+  res = res.replace(/^([ \t]*)#{1,6}\s*(\d+[.)]\s*)/gm, '$1$2');
+  res = res.replace(/(^|[\n\r]|[ \t]+)#{1,6}\s*(\d+[.)]\s*)/g, '$1$2');
+  res = res.replace(/^([ \t]*)#{1,6}\s*(\d+\s*(?:nhỏ|lớn|la mã|[a-zA-ZÀ-ỹ]))/gmi, '$1$2');
+
   // Xoá dấu ## hoặc # đứng trơ trọi vô cớ giữa câu (không phải tiêu đề đầu dòng)
-  // Ví dụ: "nội dung này có ## vô cớ" -> "nội dung này có vô cớ"
   res = res.replace(/([^\n])\s+#{1,6}(?=\s|[.,!?;:]|$)/g, '$1');
 
   // Xoá các dấu # hoặc ## thừa ở cuối dòng hoặc cuối văn bản
@@ -49,7 +58,33 @@ export function sanitizeMarkdown(text: string): string {
   res = res.replace(/^[ \t]*#{1,6}\s*(?=[.,!?;:]|$)/gm, '');
 
   // Chuẩn hoá tiêu đề nếu dính liền chữ (ví dụ: '##Tiêu đề' -> '## Tiêu đề')
-  res = res.replace(/^([ \t]*#{1,6})([^\s#\n])/gm, '$1 $2');
+  res = res.replace(/^([ \t]*#{1,6})([^\s#\n0-9])/gm, '$1 $2');
+
+  // 3. Khắc phục lỗi sát chữ (thiếu khoảng trắng giữa dấu câu, số thứ tự, ngoặc đơn do các model nhỏ/yếu)
+  // Thêm khoảng trắng sau dấu phẩy, dấu chấm phẩy nếu dính liền chữ
+  res = res.replace(/([,;])([A-Za-zÀ-ỹ0-9])/g, '$1 $2');
+
+  // Thêm khoảng trắng sau dấu hai chấm nếu không phải URL (http, https)
+  res = res.replace(/([a-zA-ZÀ-ỹ0-9]):([a-zA-ZÀ-ỹ])/g, (m, p1, p2) => {
+    if (m.toLowerCase().startsWith('http:') || m.toLowerCase().startsWith('https:')) {
+      return m;
+    }
+    return `${p1}: ${p2}`;
+  });
+
+  // Thêm khoảng trắng sau dấu chấm câu khi kết thúc từ và bắt đầu câu mới viết hoa
+  res = res.replace(/([a-zA-ZÀ-ỹ]{2,})\.([A-ZÀ-Ỹ])/g, '$1. $2');
+
+  // Thêm khoảng trắng sau số thứ tự đầu dòng (ví dụ: "1.nhỏ" -> "1. nhỏ")
+  res = res.replace(/^([ \t]*\d+\.)([^\s0-9.])/gm, '$1 $2');
+  res = res.replace(/(\n\d+\.)([^\s0-9.])/g, '$1 $2');
+
+  // Thêm khoảng trắng quanh dấu ngoặc đơn dính chữ (ví dụ: "text(ví dụ)" -> "text (ví dụ)")
+  res = res.replace(/([a-zA-ZÀ-ỹ0-9])\(([a-zA-ZÀ-ỹ0-9])/g, '$1 ($2');
+  res = res.replace(/\)([a-zA-ZÀ-ỹ0-9])/g, ') $1');
+
+  // 4. Khắc phục lỗi thừa chữ (lặp từ liên tiếp do hiện tượng lặp token của model yếu)
+  res = res.replace(/\b(là|của|và|các|những|được|cho|trong|với|khi|đã|đang|sẽ|rất|này|đó|rằng|thì|tại|từ)\s+\1\b/gi, '$1');
 
   return res;
 }
@@ -166,11 +201,12 @@ function renderInlineFormatting(lineText: string, keyPrefix: string): React.Reac
           return;
         }
 
-        // Văn bản thường
-        if (iPart) {
+        // Văn bản thường (loại bỏ hoàn toàn bất kỳ dấu ** hoặc ## còn sót lại)
+        const cleanIPart = iPart.replace(/\*\*/g, '').replace(/^[ \t]*#{1,6}\s*/g, '');
+        if (cleanIPart) {
           nodes.push(
             <span key={`${keyPrefix}-t-${partIdx}-${bIdx}-${iIdx}`}>
-              {iPart}
+              {cleanIPart}
             </span>
           );
         }
@@ -312,9 +348,9 @@ export function parseAndRenderMessage(content: string): React.ReactNode[] {
     if (match.index > lastIndex) {
       const textBefore = content.slice(lastIndex, match.index);
       segments.push(
-        <span key={`txt-${lastIndex}`} className="whitespace-pre-wrap">
+        <div key={`txt-${lastIndex}`} className="whitespace-pre-wrap leading-relaxed">
           {renderRichText(textBefore, `pre-${lastIndex}`)}
-        </span>
+        </div>
       );
     }
 
@@ -338,9 +374,9 @@ export function parseAndRenderMessage(content: string): React.ReactNode[] {
   if (lastIndex < content.length) {
     const remainingText = content.slice(lastIndex);
     segments.push(
-      <span key={`txt-${lastIndex}`} className="whitespace-pre-wrap">
+      <div key={`txt-${lastIndex}`} className="whitespace-pre-wrap leading-relaxed">
         {renderRichText(remainingText, `post-${lastIndex}`)}
-      </span>
+      </div>
     );
   }
 
