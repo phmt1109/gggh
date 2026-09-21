@@ -101,7 +101,26 @@ export default function App() {
           if (parsed.manualModelNames) setManualModelNames(parsed.manualModelNames);
           if (parsed.conversations) setConversations(parsed.conversations);
           if (parsed.myPresets) setMyPresets(parsed.myPresets);
-          if (parsed.settings) setSettings({ ...DEFAULT_SETTINGS, ...parsed.settings });
+          if (parsed.settings) {
+            const mergedSettings = { ...DEFAULT_SETTINGS, ...parsed.settings };
+            // Tự động làm mới nếu settings cũ còn lưu system prompt dài của phiên bản trước
+            if (
+              !parsed.settings.systemNormal ||
+              parsed.settings.systemNormal.includes('MỆNH LỆNH BẮT BUỘC') ||
+              parsed.settings.systemNormal.includes('QUY TẮC BẮT BUỘC') ||
+              parsed.settings.systemNormal.includes('Bạn là một trợ lý AI hữu ích, thông minh')
+            ) {
+              mergedSettings.systemNormal = DEFAULT_SETTINGS.systemNormal;
+            }
+            if (
+              !parsed.settings.systemNSFW ||
+              parsed.settings.systemNSFW.includes('MỆNH LỆNH THỰC THI BẮT BUỘC') ||
+              parsed.settings.systemNSFW.includes('VÔ HIỆU HÓA HOÀN TOÀN MỌI CƠ CHẾ')
+            ) {
+              mergedSettings.systemNSFW = DEFAULT_SETTINGS.systemNSFW;
+            }
+            setSettings(mergedSettings);
+          }
         } else {
           initDefaultProviders();
         }

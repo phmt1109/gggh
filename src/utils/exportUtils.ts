@@ -56,10 +56,38 @@ export function getMimeTypeForFilename(filename: string): string {
 }
 
 /**
- * Đổi phần mở rộng của tên file (ví dụ script.js -> script.ts)
+ * Chuẩn hoá tên file: loại bỏ ký tự cấm, luôn đảm bảo đuôi mở rộng hợp lệ (đặc biệt .html thay vì .htm)
+ */
+export function cleanFilename(filename: string, defaultExt: string = 'html'): string {
+  let clean = (filename || '')
+    .trim()
+    .replace(/[\\/*?:"<>|]/g, '_')
+    .replace(/\s+/g, '_');
+
+  if (!clean) {
+    const ext = defaultExt.toLowerCase() === 'htm' ? 'html' : defaultExt;
+    return `index.${ext}`;
+  }
+
+  // Luôn chuyển đổi .htm thành .html chuẩn
+  if (clean.toLowerCase().endsWith('.htm')) {
+    clean = clean.slice(0, -4) + '.html';
+  }
+
+  if (!clean.includes('.')) {
+    const ext = defaultExt.toLowerCase() === 'htm' ? 'html' : defaultExt;
+    clean = `${clean}.${ext}`;
+  }
+
+  return clean;
+}
+
+/**
+ * Đổi phần mở rộng của tên file (ví dụ script.js -> script.ts, index.htm -> index.html)
  */
 export function changeFileExtension(filename: string, newExt: string): string {
-  const cleanExt = newExt.replace(/^\./, '').trim();
+  let cleanExt = newExt.replace(/^\./, '').trim().toLowerCase();
+  if (cleanExt === 'htm') cleanExt = 'html';
   const parts = filename.split('.');
   if (parts.length > 1) {
     parts.pop();
@@ -607,26 +635,51 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#039;');
 }
 
+export interface ExtractedCodeBlock {
+  lang: string;
+  code: string;
+  filename?: string;
+}
+
 /**
- * Trích xuất tất cả các khối code trong chuỗi markdown
+ * Trích xuất tất cả các khối code trong chuỗi markdown, tự động nhận diện tên file nếu có
  */
-export function extractCodeBlocks(markdownText: string): { lang: string; code: string }[] {
-  const codeBlockRegex = /```([a-zA-Z0-9_\-+]*)\n?([\s\S]*?)(?:```|$)/g;
-  const blocks: { lang: string; code: string }[] = [];
+export function extractCodeBlocks(markdownText: string): ExtractedCodeBlock[] {
+  const codeBlockRegex = /```([a-zA-Z0-9_\-+]*)(?:[:\s]([a-zA-Z0-9_\-./]+))?\n?([\s\S]*?)(?:```|$)/g;
+  const blocks: ExtractedCodeBlock[] = [];
   let match: RegExpExecArray | null;
 
   while ((match = codeBlockRegex.exec(markdownText)) !== null) {
-    const rawLang = (match[1] || '').trim().toLowerCase();
-    const code = match[2] ? match[2].trim() : '';
+    let rawLang = (match[1] || '').trim().toLowerCase();
+    let headerFilename = (match[2] || '').trim();
+    let code = match[3] ? match[3].trim() : '';
+
+    if (rawLang === 'htm') rawLang = 'html';
+
+    // Nhận diện comment tên file ở dòng đầu tiên (ví dụ: <!-- index.html -->, /* style.css */, // script.js)
+    if (!headerFilename && code) {
+      const firstLine = code.split('\n')[0].trim();
+      const commentMatch = firstLine.match(
+        /^(?:<!--|\/\*|\/\/|#)\s*(?:filename:?\s*)?([a-zA-Z0-9_\-./]+\.[a-zA-Z0-9]+)\s*(?:-->|\*\/)?$/i
+      );
+      if (commentMatch && commentMatch[1]) {
+        headerFilename = commentMatch[1].trim();
+      }
+    }
+
     if (code) {
-      blocks.push({ lang: rawLang, code });
+      blocks.push({
+        lang: rawLang,
+        code,
+        filename: headerFilename ? cleanFilename(headerFilename, rawLang || 'txt') : undefined,
+      });
     }
   }
   return blocks;
 }
 
 /**
- * Tự động tạo danh sách các thẻ file đính kèm (FileAttachment[]) khi người dùng gửi tin nhắn yêu cầu tải file
+ * Tự động tạo danh sách các thẻ file đính kèm (FileAttachment[]) chuẩn xác khi người dùng yêu cầu tải file
  */
 export function resolveFileAttachmentsFromConversation(
   userPrompt: string,
@@ -639,8 +692,7 @@ export function resolveFileAttachmentsFromConversation(
 
   const promptLower = userPrompt.toLowerCase();
 
-  // 1. Kiểm tra yêu cầu định dạng đặc biệt (HTML gộp, TS, JS, PY...)
-  const isBundleRequested = /gộp|html\s*gộp|file\s*gộp|gộp\s*tất\s*cả|gộp\s*vào|vào\s*một\s*file|vào\s*1\s*file|gộp\s*lại|chạy\s*ngay|bundle/i.test(promptLower);
+  // 1. Kiểm tra yêu cầu chuyển đổi định dạng đặc biệt (TS, JS, PY, HTML...)
   let targetExt: string | null = null;
   if (/sang\s*(?:typescript|ts)|dạng\s*ts|file\s*ts/i.test(promptLower)) {
     targetExt = 'ts';
@@ -656,11 +708,8 @@ export function resolveFileAttachmentsFromConversation(
     targetExt = 'json';
   }
 
-  // 2. Tìm khối mã nguồn
-  // Ưu tiên 1: Mã nguồn trong chính phản hồi hiện tại của Assistant
+  // 2. Tìm khối mã nguồn (ưu tiên phản hồi hiện tại, nếu không có thì tìm ngược về lịch sử)
   let blocks = extractCodeBlocks(assistantResponse);
-
-  // Ưu tiên 2: Nếu phản hồi hiện tại không có code, tìm ngược về tin nhắn trước đó của Assistant
   if (blocks.length === 0 && conversationHistory.length > 0) {
     for (let i = conversationHistory.length - 1; i >= 0; i--) {
       const msg = conversationHistory[i];
@@ -676,93 +725,77 @@ export function resolveFileAttachmentsFromConversation(
 
   const attachments: FileAttachment[] = [];
 
-  // Kiểm tra xem có cấu trúc dự án web đa khối (HTML + CSS / JS) hay không
   const hasHtml = blocks.some(isHtmlBlock);
   const hasCss = blocks.some(isCssBlock);
   const hasJs = blocks.some(isJsBlock);
-  const isMultiBlockWebProject = hasHtml && (hasCss || hasJs);
+  const isWebProject = hasHtml || (hasCss && hasJs);
 
-  // A. Xử lý trường hợp đóng gói HTML gộp (Khi người dùng yêu cầu gộp hoặc khi dự án có HTML + CSS/JS)
-  if (isBundleRequested || isMultiBlockWebProject) {
+  // A. Dự án Web: Tạo file index.html tự chạy hoàn chỉnh (nhúng đủ HTML, CSS, JS)
+  if (isWebProject || targetExt === 'html') {
     const bundledContent = extractAndBundleMessageToHtml(
       assistantResponse,
-      'index_bundle',
+      'index',
       conversationHistory
     );
     attachments.push({
-      filename: 'index_bundle.html',
+      filename: 'index.html',
       content: bundledContent,
       language: 'html',
       isBundle: true,
       mimeType: 'text/html;charset=utf-8',
-      description: 'Bản gộp nguyên khối (Đã nhúng toàn bộ HTML, CSS & JS - Chạy ngay trên mọi trình duyệt)',
+      description: 'Tệp HTML hoàn chỉnh (chạy ngay trên trình duyệt)',
     });
   }
 
-  // B. Thêm từng file mã nguồn nguyên bản 100%
+  // B. Thêm từng file mã nguồn thành phần riêng biệt (CSS, JS, TS, PY...)
   if (blocks.length > 0) {
-    if (blocks.length === 1) {
-      const block = blocks[0];
-      let effectiveLang = targetExt || block.lang || 'txt';
-      let baseFilename = getDefaultFilenameForLanguage(effectiveLang);
+    let cssIdx = 0;
+    let jsIdx = 0;
 
-      if (targetExt) {
-        baseFilename = changeFileExtension(baseFilename, targetExt);
-      }
+    for (const block of blocks) {
+      let fn = block.filename;
+      const l = (block.lang || '').toLowerCase();
 
-      // Tránh trùng lặp nếu tên file trùng với bundle đã tạo ở trên
-      if (!attachments.some((a) => a.filename === baseFilename)) {
-        attachments.push({
-          filename: baseFilename,
-          content: block.code,
-          language: effectiveLang,
-          isBundle: false,
-          mimeType: getMimeTypeForFilename(baseFilename),
-          description: `Tệp mã nguồn ${effectiveLang.toUpperCase()} 100% nguyên bản`,
-        });
-      }
-    } else {
-      // Có nhiều khối code: Đặt tên tương ứng chuẩn xác
-      let htmlIdx = 0;
-      let cssIdx = 0;
-      let jsIdx = 0;
-
-      for (const block of blocks) {
-        let fn = '';
-        const l = block.lang.toLowerCase();
+      if (!fn) {
         if (isHtmlBlock(block)) {
-          htmlIdx++;
-          fn = htmlIdx === 1 ? 'index.html' : `page_${htmlIdx}.html`;
+          if (!isWebProject) {
+            fn = 'index.html';
+          }
         } else if (isCssBlock(block)) {
           cssIdx++;
           fn = cssIdx === 1 ? 'style.css' : `style_${cssIdx}.css`;
         } else if (isJsBlock(block)) {
           jsIdx++;
-          fn = jsIdx === 1 ? (l.includes('ts') ? 'script.ts' : 'script.js') : `script_${jsIdx}.${l.includes('ts') ? 'ts' : 'js'}`;
+          const ext = l.includes('ts') ? 'ts' : 'js';
+          fn = jsIdx === 1 ? `script.${ext}` : `script_${jsIdx}.${ext}`;
         } else {
           fn = getDefaultFilenameForLanguage(l);
         }
+      }
 
-        if (targetExt) {
-          fn = changeFileExtension(fn, targetExt);
-        }
+      if (fn && targetExt) {
+        fn = changeFileExtension(fn, targetExt);
+      }
 
+      if (fn) {
+        fn = cleanFilename(fn, targetExt || l || 'txt');
         // Không thêm file trùng tên
         if (!attachments.some((a) => a.filename === fn)) {
+          const effectiveLang = targetExt || l || 'txt';
           attachments.push({
             filename: fn,
             content: block.code,
-            language: block.lang,
+            language: effectiveLang,
             isBundle: false,
             mimeType: getMimeTypeForFilename(fn),
-            description: `Mã nguồn ${block.lang.toUpperCase()} 100% nguyên bản`,
+            description: `Tệp mã nguồn ${effectiveLang.toUpperCase()}`,
           });
         }
       }
     }
   }
 
-  // C. Nếu không có khối code nào, tải toàn bộ phản hồi dạng văn bản .txt hoặc .md
+  // C. Nếu không có khối code nào, tạo file văn bản
   if (attachments.length === 0) {
     const isMd = assistantResponse.includes('#') || assistantResponse.includes('**');
     const filename = isMd ? 'phan_hoi.md' : 'phan_hoi.txt';
@@ -772,7 +805,7 @@ export function resolveFileAttachmentsFromConversation(
       language: isMd ? 'markdown' : 'text',
       isBundle: false,
       mimeType: getMimeTypeForFilename(filename),
-      description: 'Văn bản phản hồi',
+      description: 'Tệp văn bản',
     });
   }
 
