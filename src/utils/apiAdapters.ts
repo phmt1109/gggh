@@ -122,17 +122,18 @@ export function trimContext(messages: ChatMessage[], limit: number): ChatMessage
 export function getActiveSystem(settings: Settings, retryAttempt: number = 0): string {
   if (settings.nsfw) {
     const custom = (settings.systemNSFW || '').trim();
+    const baseCore = DEFAULT_SYSTEM_NSFW;
     const strategies = ['extreme_compliance', 'adaptive', 'deep_narrative', 'hypothetical_author'] as const;
     const chosenStrategy = retryAttempt > 0
       ? strategies[(retryAttempt - 1) % strategies.length]
       : (settings.jailbreakStrategy || 'extreme_compliance');
 
-    const strategyPrompt = JAILBREAK_PROMPTS[chosenStrategy] || DEFAULT_SYSTEM_NSFW;
+    const strategyPrompt = JAILBREAK_PROMPTS[chosenStrategy] || '';
 
     if (custom) {
-      return `${custom}\n\n${strategyPrompt}`;
+      return `${custom}\n\n${baseCore}\n\n${strategyPrompt}`;
     }
-    return strategyPrompt;
+    return `${baseCore}\n\n${strategyPrompt}`;
   }
   const custom = (settings.systemNormal || '').trim();
   return custom || DEFAULT_SYSTEM_NORMAL;
