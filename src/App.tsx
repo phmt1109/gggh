@@ -625,6 +625,9 @@ export default function App() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    let rafId: number | null = null;
+    let latestAccumulated = '';
+
     try {
       let currentAccumulated = '';
 
@@ -635,12 +638,24 @@ export default function App() {
         settings,
         abortSignal: controller.signal,
         retryAttempt,
-        onDelta: (chunk, accumulated) => {
+        onDelta: (_chunk, accumulated) => {
           setIsThinking(false);
           currentAccumulated = accumulated;
-          setStreamingText(accumulated);
+          latestAccumulated = accumulated;
+          if (!rafId) {
+            rafId = requestAnimationFrame(() => {
+              setStreamingText(latestAccumulated);
+              rafId = null;
+            });
+          }
         },
       });
+
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      setStreamingText(result.fullText || currentAccumulated);
 
       // Anti-Refusal check (Only in 18+ mode)
       if (settings.nsfw && result.isRefusal) {
