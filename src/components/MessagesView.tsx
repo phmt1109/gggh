@@ -1,9 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { ChatMessage } from '../types';
 import { parseAndRenderMessage } from '../utils/markdownParser';
-import { FileAttachmentCard } from './FileAttachmentCard';
-import { isDownloadOrFileRequest } from '../constants';
-import { resolveFileAttachmentsFromConversation } from '../utils/exportUtils';
 
 interface MessagesViewProps {
   messages: ChatMessage[];
@@ -60,22 +57,6 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
         const isError = m.isError;
         const isLastAssistant = !isUser && idx === messages.length - 1;
 
-        // Xác định các file đính kèm: từ m.fileAttachments hoặc tự động suy luận từ ngữ cảnh yêu cầu tải file
-        const effectiveAttachments = [...(m.fileAttachments || [])];
-        if (effectiveAttachments.length === 0 && !isUser && !isError) {
-          const prevMsg = messages[idx - 1];
-          if (prevMsg && prevMsg.role === 'user' && isDownloadOrFileRequest(prevMsg.content)) {
-            const resolvedList = resolveFileAttachmentsFromConversation(
-              prevMsg.content,
-              m.content,
-              messages.slice(0, idx)
-            );
-            if (resolvedList.length > 0) {
-              effectiveAttachments.push(...resolvedList);
-            }
-          }
-        }
-
         return (
           <div
             key={m.id}
@@ -98,26 +79,14 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                     <pre className="chat-error-log-box">{m.content}</pre>
                   </div>
                 ) : (
-                  <>
-                    {renderFormattedBody(m.content)}
-                    {effectiveAttachments.map((file, fileIdx) => (
-                      <FileAttachmentCard
-                        key={`file-${m.id}-${fileIdx}`}
-                        filename={file.filename}
-                        content={file.content}
-                        language={file.language}
-                        isBundle={file.isBundle}
-                        mimeType={file.mimeType}
-                      />
-                    ))}
-                  </>
+                  renderFormattedBody(m.content)
                 )}
               </div>
 
               <div className="msg-actions">
                 <button
                   type="button"
-                  title="Sao chép nội dung tin nhắn"
+                  title="Sao chép toàn bộ tin nhắn"
                   onClick={() => onCopyMessage(m.content)}
                 >
                   📋 Sao chép

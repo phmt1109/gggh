@@ -56,7 +56,13 @@ export default function App() {
   const [showSysPanel, setShowSysPanel] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastIsError, setToastIsError] = useState<boolean>(false);
-  const [inputMessage, setInputMessage] = useState<string>('');
+  const [inputMessage, setInputMessage] = useState<string>(() => {
+    try {
+      return localStorage.getItem('ai_console_draft_input') || '';
+    } catch {
+      return '';
+    }
+  });
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const [streamingText, setStreamingText] = useState<string>('');
@@ -64,6 +70,19 @@ export default function App() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const toastTimeoutRef = useRef<any>(null);
+
+  // Auto-save draft input to localStorage whenever typing
+  useEffect(() => {
+    try {
+      if (inputMessage) {
+        localStorage.setItem('ai_console_draft_input', inputMessage);
+      } else {
+        localStorage.removeItem('ai_console_draft_input');
+      }
+    } catch {
+      // Ignore quota errors
+    }
+  }, [inputMessage]);
 
   // Show Toast
   const triggerToast = (msg: string, isErr = false) => {
