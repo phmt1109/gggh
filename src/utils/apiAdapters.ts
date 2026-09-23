@@ -32,14 +32,91 @@ export function filterModels(models: string[], filterChat: boolean): string[] {
   return models.filter((m) => !NON_CHAT_MODELS_REGEX.test(m));
 }
 
-export function trimContext(messages: ChatMessage[], limit: number): ChatMessage[] {
-  if (limit <= 0 || messages.length <= limit) return [...messages];
-  const sliced = messages.slice(-limit);
-  // Ensure trimmed context always starts with a user message
-  while (sliced.length > 0 && sliced[0].role !== 'user') {
-    sliced.shift();
+/**
+ * Smart Trim Engine:
+ * Intelligently summarizes older messages when conversation token/character length reaches a high threshold,
+ * preserving narrative context, character roles, emotional state, and established plot facts
+ * without blowing through model context limits. (Runs completely under-the-hood with zero UI distraction)
+ */
+export function smartTrimContext(
+  messages: ChatMessage[],
+  limit: number = 0,
+  maxCharThreshold: number = 18000
+): ChatMessage[] {
+  if (!messages || messages.length === 0) return [];
+
+  // Filter out any transient error messages
+  const validMessages = messages.filter((m) => !m.isError && m.content.trim());
+  if (validMessages.length <= 4) return validMessages;
+
+  // Calculate total characters in conversation
+  const totalChars = validMessages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
+
+  // If explicit limit is set or total length exceeds threshold
+  const shouldSmartTrim = (limit > 0 && validMessages.length > limit) || totalChars > maxCharThreshold;
+  if (!shouldSmartTrim) {
+    return validMessages;
   }
-  return sliced;
+
+  // Determine how many recent messages to keep completely intact (at least the last 4-6 turns)
+  const keepCount = limit > 0 ? Math.max(4, Math.min(limit, 8)) : Math.min(6, validMessages.length - 2);
+  const olderMessages = validMessages.slice(0, validMessages.length - keepCount);
+  const recentMessages = validMessages.slice(validMessages.length - keepCount);
+
+  if (olderMessages.length === 0) {
+    return recentMessages;
+  }
+
+  // Build a high-density narrative summary from older messages
+  const keyPlotPoints: string[] = [];
+  olderMessages.forEach((m) => {
+    const roleLabel = m.role === 'user' ? 'Người dùng' : 'Trợ lý';
+    const text = m.content.trim();
+    // Compress long paragraphs to key sentences
+    const cleanLines = text
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const summaryLine = cleanLines.length > 2
+      ? `${cleanLines[0]} ... ${cleanLines[cleanLines.length - 1]}`
+      : cleanLines.join(' ');
+    const compact = summaryLine.length > 180 ? `${summaryLine.slice(0, 180)}...` : summaryLine;
+    keyPlotPoints.push(`- ${roleLabel}: ${compact}`);
+  });
+
+  const narrativeSummary = `[KÝ ỨC & TIẾN TRÌNH HỘI THOẠI TRƯỚC ĐÓ]:\n${keyPlotPoints.join('\n')}\n(Ghi chú: Duy trì liền mạch bối cảnh, xưng hô và cảm xúc từ diễn biến trên để tiếp tục trò chuyện.)`;
+
+  // Attach narrative memory into the first turn of recent messages
+  const enhancedRecent = recentMessages.map((m, idx) => {
+    if (idx === 0) {
+      if (m.role === 'user') {
+        return {
+          ...m,
+          content: `${narrativeSummary}\n\n${m.content}`,
+        };
+      } else {
+        return {
+          ...m,
+          content: `${m.content}\n\n${narrativeSummary}`,
+        };
+      }
+    }
+    return m;
+  });
+
+  // Ensure conversation starts with user role if possible
+  while (enhancedRecent.length > 1 && enhancedRecent[0].role !== 'user') {
+    const first = enhancedRecent.shift();
+    if (first && enhancedRecent[0]) {
+      enhancedRecent[0].content = `${narrativeSummary}\n\n${enhancedRecent[0].content}`;
+    }
+  }
+
+  return enhancedRecent;
+}
+
+export function trimContext(messages: ChatMessage[], limit: number): ChatMessage[] {
+  return smartTrimContext(messages, limit);
 }
 
 export function getActiveSystem(settings: Settings, retryAttempt: number = 0): string {

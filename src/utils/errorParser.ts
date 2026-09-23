@@ -71,7 +71,20 @@ export function parseApiError(rawError: string): ParsedApiError {
   let summary = '';
   const lower = body.toLowerCase();
 
-  if (body.includes('API_KEY_SERVICE_BLOCKED') || body.includes('Expected OAuth 2 access token')) {
+  // Check 402 / OpenRouter credit exhaustion first
+  if (
+    httpCode === 'HTTP 402' ||
+    lower.includes('402') ||
+    lower.includes('prompt tokens limit exceeded') ||
+    lower.includes('openrouter_credits') ||
+    lower.includes('requires more credits') ||
+    lower.includes('can only afford') ||
+    lower.includes('in_flight_budget_exhausted') ||
+    lower.includes('upgrade to a paid account')
+  ) {
+    summary = 'Tài khoản OpenRouter của bạn đã hết số dư / không đủ credit cho model này (HTTP 402).';
+    hint = '💡 Hướng dẫn khắc phục:\n1. Chọn model Miễn Phí của OpenRouter (có đuôi ":free"): ví dụ "meta-llama/llama-3.3-70b-instruct:free", "deepseek/deepseek-r1:free", "google/gemini-2.0-flash-exp:free", "qwen/qwen-2.5-72b-instruct:free".\n2. Nạp thêm credits tại: https://openrouter.ai/settings/credits\n3. Hoặc chuyển sang Preset "Google Gemini" với API Key miễn phí từ aistudio.google.com.';
+  } else if (body.includes('API_KEY_SERVICE_BLOCKED') || body.includes('Expected OAuth 2 access token')) {
     summary = 'Mô hình này yêu cầu tài khoản nội bộ (OAuth 2) hoặc API Key bị giới hạn quyền.';
     hint = 'Mô hình bạn chọn (ví dụ antigravity/experimental) không mở cho API Key thông thường. Hãy chọn các model chính thức như gemini-2.5-flash, gemini-2.5-pro, hoặc gemini-1.5-flash.';
   } else if (parsedJson?.error?.message) {
@@ -87,9 +100,6 @@ export function parseApiError(rawError: string): ParsedApiError {
       summary = 'Bị từ chối quyền truy cập hoặc tài khoản chưa kích hoạt/nạp tiền (403 Forbidden).';
     } else if (httpCode === 'HTTP 404' || lower.includes('404') || lower.includes('not found')) {
       summary = 'Địa chỉ Base URL không tồn tại hoặc sai đường dẫn API (404 Not Found).';
-    } else if (httpCode === 'HTTP 402' || lower.includes('402') || lower.includes('requires more credits') || lower.includes('can only afford') || lower.includes('in_flight_budget_exhausted')) {
-      summary = 'Tài khoản OpenRouter / API hết credits hoặc số dư không đủ cho số lượng tokens yêu cầu (HTTP 402).';
-      hint = 'Giải pháp: 1. Hãy chọn các model miễn phí có đuôi ":free" trên OpenRouter (ví dụ: deepseek/deepseek-chat:free, meta-llama/llama-3.3-70b-instruct:free, google/gemini-2.0-flash-exp:free). 2. Giảm Max Tokens trên thanh Settings. 3. Nạp thêm credits tại openrouter.ai/settings/credits.';
     } else if (httpCode === 'HTTP 429' || lower.includes('429') || lower.includes('quota') || lower.includes('rate limit')) {
       summary = 'Đã hết hạn mức gọi (Quota) hoặc bị nghẽn tần suất (429 Rate Limit / Quota Exceeded).';
     } else if (lower.includes('failed to fetch') || lower.includes('cors') || lower.includes('networkerror')) {
