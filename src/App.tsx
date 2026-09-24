@@ -20,6 +20,8 @@ import { ProviderModal } from './components/ProviderModal';
 import { Toast } from './components/Toast';
 import { ConfirmModal } from './components/ConfirmModal';
 import { ErrorLogViewer } from './components/ErrorLogViewer';
+import { SecurityShieldOverlay } from './components/SecurityShieldOverlay';
+import { securityShield, SecurityStatus } from './utils/securityShield';
 
 export default function App() {
   // Application State
@@ -67,9 +69,21 @@ export default function App() {
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const [streamingText, setStreamingText] = useState<string>('');
   const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [securityStatus, setSecurityStatus] = useState<SecurityStatus>(() => securityShield.getStatus());
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const toastTimeoutRef = useRef<any>(null);
+
+  // Initialize Security Shield to protect source code against F12, bots, and scrapers
+  useEffect(() => {
+    securityShield.init();
+    const unsubscribe = securityShield.subscribe((status) => {
+      setSecurityStatus(status);
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   // Auto-save draft input to localStorage whenever typing
   useEffect(() => {
@@ -909,6 +923,12 @@ export default function App() {
         variant={confirmDialog.variant}
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* Protective anti-tamper, anti-devtools, and polymorphic DOM shield overlay */}
+      <SecurityShieldOverlay
+        status={securityStatus}
+        onRefreshSession={() => window.location.reload()}
       />
     </div>
   );
