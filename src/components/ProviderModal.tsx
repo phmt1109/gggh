@@ -271,7 +271,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
               <input
                 id="provNameInput"
                 type="text"
-                placeholder="VD: OpenAI, DeepSeek, Ollama..."
+                placeholder="VD: OpenAI, DeepSeek, Google Gemini..."
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -304,11 +304,6 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
             />
             <div id="formatHint" className="hint" style={{ marginTop: 6 }}>
               <span>Định dạng tự nhận diện: <strong style={{ color: 'var(--accent1)' }}>{detected}</strong></span>
-              {baseUrl && (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) && (
-                <div className="local-hint-box">
-                  💡 <strong>Chạy máy cá nhân (Local):</strong> Hãy bật CORS trên Ollama (<code>OLLAMA_ORIGINS="*"</code>) hoặc LM Studio để trình duyệt kết nối trực tiếp mượt mà.
-                </div>
-              )}
             </div>
           </div>
 
@@ -318,7 +313,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
               <input
                 id="provKeyInput"
                 type={showKey ? 'text' : 'password'}
-                placeholder="sk-... (để trống nếu dùng Ollama hoặc máy local)"
+                placeholder="sk-... (hoặc dán API key tại đây)"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
               />
