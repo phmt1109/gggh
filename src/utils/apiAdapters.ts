@@ -1468,15 +1468,15 @@ async function callGemini(opts: {
           if (Array.isArray(parts)) {
             for (const part of parts) {
               const candidateText = part?.text;
-              if (typeof candidateText === 'string') {
+              if (typeof candidateText === 'string' && candidateText.length > 0) {
+                let delta = candidateText;
                 if (candidateText.startsWith(accumulated) && candidateText.length > accumulated.length) {
-                  const delta = candidateText.slice(accumulated.length);
+                  delta = candidateText.slice(accumulated.length);
                   accumulated = candidateText;
-                  onDelta(delta, accumulated);
-                } else if (!accumulated.endsWith(candidateText)) {
-                  accumulated += candidateText;
-                  onDelta(candidateText, accumulated);
+                } else {
+                  accumulated += delta;
                 }
+                onDelta(delta, accumulated);
               }
             }
           }

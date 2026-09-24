@@ -508,7 +508,7 @@ export const DEFAULT_SETTINGS: Settings = {
   contextLimit: 0,
   jailbreakStrategy: 'extreme_compliance',
   assistantPrefill: true,
-  webSearch: true,
+  webSearch: false,
 };
 
 export const DEFAULT_PERSONAS: import('./types').PersonaProfile[] = [
