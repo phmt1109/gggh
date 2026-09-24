@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
+import { GoogleGenAI } from '@google/genai';
 
 async function startServer() {
   const app = express();
@@ -13,6 +14,117 @@ async function startServer() {
   // API Health Check
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
+  });
+
+  // Server-side Gemini chat endpoint with automatic API key fallback
+  app.post('/api/gemini/chat', async (req, res) => {
+    try {
+      const userKey = (req.body?.apiKey || '').trim();
+      const apiKey = (!userKey || userKey.includes('BLOCKED') ? '' : userKey) || process.env.GEMINI_API_KEY || '';
+
+      if (!apiKey) {
+        res.status(401).json({
+          error: {
+            code: 401,
+            message: 'Chưa có Gemini API Key hợp lệ. Vui lòng cung cấp API Key từ aistudio.google.com/app/apikey.',
+            status: 'UNAUTHENTICATED',
+          },
+        });
+        return;
+      }
+
+      const rawModel = req.body?.model || 'gemini-3.6-flash';
+      let targetModel = rawModel.replace(/^models\//, '');
+      if (targetModel.includes('1.5') || targetModel.includes('2.0-flash')) {
+        targetModel = 'gemini-3.6-flash';
+      }
+
+      const stream = req.body?.stream !== false;
+      const ai = new GoogleGenAI({ apiKey });
+
+      const rawContents = req.body?.contents || [];
+      const contents = Array.isArray(rawContents)
+        ? rawContents.map((c: any) => ({
+            role: c.role === 'model' || c.role === 'assistant' ? 'model' : 'user',
+            parts: Array.isArray(c.parts) ? c.parts : [{ text: String(c.content || c.parts || '') }],
+          }))
+        : [{ role: 'user', parts: [{ text: String(rawContents) }] }];
+
+      const config: any = {};
+      if (req.body?.systemInstruction) {
+        config.systemInstruction = req.body.systemInstruction;
+      }
+      if (req.body?.generationConfig?.temperature !== undefined) {
+        config.temperature = req.body.generationConfig.temperature;
+      }
+      if (req.body?.generationConfig?.maxOutputTokens !== undefined) {
+        config.maxOutputTokens = req.body.generationConfig.maxOutputTokens;
+      }
+      if (req.body?.safetySettings) {
+        config.safetySettings = req.body.safetySettings;
+      }
+
+      if (stream) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        const responseStream = await ai.models.generateContentStream({
+          model: targetModel,
+          contents,
+          config,
+        });
+
+        for await (const chunk of responseStream) {
+          const sseData = {
+            candidates: [
+              {
+                content: {
+                  parts: [{ text: chunk.text || '' }],
+                  role: 'model',
+                },
+              },
+            ],
+          };
+          res.write(`data: ${JSON.stringify(sseData)}\n\n`);
+        }
+        res.end();
+      } else {
+        const response = await ai.models.generateContent({
+          model: targetModel,
+          contents,
+          config,
+        });
+        res.json({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: response.text || '' }],
+                role: 'model',
+              },
+            },
+          ],
+        });
+      }
+    } catch (err: any) {
+      console.error('Server Gemini chat error:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Server Gemini chat proxy failed', details: err?.message || String(err) });
+      }
+    }
+  });
+
+  // Server-side Gemini models list endpoint
+  app.get('/api/gemini/models', (req, res) => {
+    res.json({
+      models: [
+        'gemini-3.6-flash',
+        'gemini-3.5-flash',
+        'gemini-3.8-flash',
+        'gemini-2.5-flash',
+        'gemini-2.5-pro',
+      ],
+    });
   });
 
   // Endpoint to research/fetch and parse clean text from any URL

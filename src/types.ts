@@ -66,6 +66,7 @@ export interface Settings {
   nsfw: boolean;
   systemNormal: string;
   systemNSFW: string;
+  systemPrompt?: string; // Optional user-defined system prompt or persona override
   transport: NetworkTransport;
   localIpAddress?: string; // Custom LAN/Local IP (e.g. 192.168.1.5, 127.0.0.1, localhost)
   contextLimit: number; // 0 = all, 6, 12, 20, 40

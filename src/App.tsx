@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ApiFormat, AppState, ChatMessage, NetworkTransport, Preset, Provider, Settings } from './types';
-import { DEFAULT_PRESETS, DEFAULT_SETTINGS, STORAGE_KEY } from './constants';
+import { DEFAULT_PRESETS, DEFAULT_SETTINGS, REFUSAL_REGEX, STORAGE_KEY } from './constants';
 import { executeChat, fetchProviderModels, filterModels } from './utils/apiAdapters';
 import {
   loadAppState,
@@ -645,11 +645,22 @@ export default function App() {
     try {
       let currentAccumulated = '';
 
+      // Ensure that if settings.systemPrompt is empty, it does not inject any default system message
+      // that overrides the user's role-play configuration, while maintaining persona consistency logic
+      // by respecting the user's defined system context.
+      const effectiveSettings: Settings = {
+        ...settings,
+        systemPrompt:
+          typeof settings.systemPrompt === 'string'
+            ? settings.systemPrompt
+            : undefined,
+      };
+
       const result = await executeChat({
         provider,
         model,
         messages: history,
-        settings,
+        settings: effectiveSettings,
         abortSignal: controller.signal,
         retryAttempt,
         onDelta: (_chunk, accumulated) => {
@@ -675,14 +686,14 @@ export default function App() {
       if (settings.nsfw && result.isRefusal) {
         console.warn(`Anti-Refusal triggered on attempt ${retryAttempt + 1}. Detected refusal:`, result.fullText);
 
-        if (retryAttempt < 5) {
+        if (retryAttempt < 3) {
           triggerToast(
-            `⚠️ Phát hiện model ngập ngừng (Lần ${retryAttempt + 1}/5). Đang tự động xử lý...`,
+            `⚠️ Đang tinh chỉnh phân vai (Lần ${retryAttempt + 1}/3)...`,
             true
           );
 
           // Retry with hardened nudge & next jailbreak strategy rotation if needed
-          await new Promise((r) => setTimeout(r, 450));
+          await new Promise((r) => setTimeout(r, 350));
           return await runAiChatFlow({
             provider,
             model,
@@ -690,20 +701,29 @@ export default function App() {
             retryAttempt: retryAttempt + 1,
           });
         } else {
-          // Exceeded attempts
-          const refusalMsg: ChatMessage = {
-            id: `msg-${Date.now()}`,
-            role: 'assistant',
-            content: `❌ [CẢNH BÁO KIỂM DUYỆT]: Model "${model}" đã kích hoạt bộ lọc từ chối sau 5 lần thử lại.\n\n💡 GỢI Ý GIẢI PHÁP:\n1. Chọn model ít bị kiểm duyệt hơn (như DeepSeek V3/R1, Llama 3, Mistral, Grok 2, hoặc các model uncensored trên OpenRouter/Together).\n2. Nhập thêm bối cảnh hư cấu hoặc phân vai cụ thể trong mục "System prompt".`,
-            timestamp: Date.now(),
-            isError: true,
-          };
-          setConversations((prev) => ({
-            ...prev,
-            [provId]: [...history, refusalMsg],
-          }));
-          triggerToast('Model bị khóa cứng bởi bộ lọc máy chủ. Hãy thử đổi model khác!', true);
-          return;
+          // If the model actually returned non-empty text that was just borderline dialogue, keep it
+          if (
+            result.fullText &&
+            result.fullText.trim().length > 30 &&
+            !REFUSAL_REGEX.test(result.fullText.slice(0, 150).toLowerCase())
+          ) {
+            console.log('Accepting response instead of blocking:', result.fullText);
+          } else {
+            // Exceeded attempts
+            const refusalMsg: ChatMessage = {
+              id: `msg-${Date.now()}`,
+              role: 'assistant',
+              content: `⚠️ [BỘ LỌC AN TOÀN]: Mô hình "${model}" tạm thời bị hạn chế bởi bộ lọc từ chối của nhà cung cấp.\n\n💡 Bạn có thể:\n1. Bấm thử lại lần nữa hoặc chuyển sang mô hình linh hoạt hơn (như DeepSeek V3/R1, Llama 3, Mistral, Grok).\n2. Thêm bối cảnh nhập vai cụ thể trong ô System prompt.`,
+              timestamp: Date.now(),
+              isError: true,
+            };
+            setConversations((prev) => ({
+              ...prev,
+              [provId]: [...history, refusalMsg],
+            }));
+            triggerToast('Mô hình bị giới hạn bởi bộ lọc an toàn của nhà cung cấp.', true);
+            return;
+          }
         }
       }
 

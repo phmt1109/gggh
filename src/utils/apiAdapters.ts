@@ -128,6 +128,22 @@ export function getActiveSystem(
 ): string {
   const pronounRule = detectPronounInstruction(messages);
 
+  // If settings.systemPrompt is explicitly set:
+  // If empty, do not inject any default system message that overrides user's role-play configuration.
+  if (typeof settings.systemPrompt === 'string') {
+    const trimmedCustom = settings.systemPrompt.trim();
+    if (!trimmedCustom) {
+      if (retryAttempt > 0 && settings.nsfw) {
+        const strategies = ['extreme_compliance', 'adaptive', 'deep_narrative', 'hypothetical_author'] as const;
+        const chosenStrategy = strategies[(retryAttempt - 1) % strategies.length];
+        const strategyPrompt = JAILBREAK_PROMPTS[chosenStrategy] || '';
+        return pronounRule ? `${strategyPrompt}\n\n${pronounRule}` : strategyPrompt;
+      }
+      return '';
+    }
+    return pronounRule ? `${trimmedCustom}\n\n${pronounRule}` : trimmedCustom;
+  }
+
   if (settings.nsfw) {
     const custom = (settings.systemNSFW || '').trim();
     const baseCore = DEFAULT_SYSTEM_NSFW;
@@ -138,14 +154,16 @@ export function getActiveSystem(
 
     const strategyPrompt = JAILBREAK_PROMPTS[chosenStrategy] || '';
 
-    if (custom) {
-      return `${custom}\n\n${baseCore}\n\n${strategyPrompt}\n\n${pronounRule}`;
-    }
-    return `${baseCore}\n\n${strategyPrompt}\n\n${pronounRule}`;
+    const parts = [custom, baseCore, strategyPrompt, pronounRule].filter(Boolean);
+    return parts.join('\n\n');
   }
-  const custom = (settings.systemNormal || '').trim();
-  const basePrompt = custom || DEFAULT_SYSTEM_NORMAL;
-  return `${basePrompt}\n\n${pronounRule}`;
+
+  const custom = settings.systemNormal;
+  if (typeof custom === 'string' && custom.trim() === '') {
+    return '';
+  }
+  const basePrompt = (custom || '').trim() || DEFAULT_SYSTEM_NORMAL;
+  return pronounRule ? `${basePrompt}\n\n${pronounRule}` : basePrompt;
 }
 
 /**
@@ -233,16 +251,13 @@ export async function fetchProviderModels(
   const rawApiKey = (provider.apiKey || '').trim().replace(/^["']|["']$/g, '');
 
   const standardGeminiModels = [
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
+    'gemini-3.8-flash',
     'gemini-2.5-flash',
     'gemini-2.5-pro',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
-    'gemini-2.0-pro-exp-02-05',
-    'gemini-2.0-flash-thinking-exp-01-21',
-    'gemini-1.5-pro',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-    'gemini-1.0-pro',
+    'gemini-flash-latest',
+    'gemini-pro-latest',
   ];
 
   const standardClaudeModels = [
@@ -1200,14 +1215,20 @@ async function callGemini(opts: {
     };
   }
 
-  // 18+ safety settings (standard official Gemini v1beta categories: BLOCK_NONE)
+  // Official Gemini v1beta categories supporting BLOCK_NONE
   if (settings.nsfw && !retryWithNoSafety) {
     body.safetySettings = [
       { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' },
+    ];
+  } else if (!retryWithNoSafety) {
+    body.safetySettings = [
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
     ];
   }
 
@@ -1275,6 +1296,38 @@ async function callGemini(opts: {
     }
   }
 
+  // Attempt 3.5: Fallback to built-in server-side Gemini chat endpoint (/api/gemini/chat)
+  if (!res.ok && (res.status === 401 || res.status === 403)) {
+    const checkText = await res.clone().text().catch(() => '');
+    if (
+      checkText.includes('API_KEY_SERVICE_BLOCKED') ||
+      checkText.includes('UNAUTHENTICATED') ||
+      res.status === 401
+    ) {
+      try {
+        const srvResp = await fetch('/api/gemini/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: cleanModel,
+            contents,
+            systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
+            generationConfig,
+            stream,
+            apiKey: cleanKey,
+          }),
+          signal: abortSignal,
+        });
+        if (srvResp.ok) {
+          res = srvResp;
+          url = '/api/gemini/chat';
+        }
+      } catch (srvErr) {
+        console.warn('[Gemini server proxy fallback error]:', srvErr);
+      }
+    }
+  }
+
   // If still fails with 401/403/API_KEY_SERVICE_BLOCKED, try Attempt 4: Official Google OpenAI-compatible endpoint
   if (!res.ok && (res.status === 401 || res.status === 403)) {
     const checkText = await res.clone().text().catch(() => '');
@@ -1315,14 +1368,14 @@ async function callGemini(opts: {
 
     // Check if error is model not found or restricted model (HTTP 404, 400, or 401 API_KEY_SERVICE_BLOCKED for specific models)
     if (
-      (res.status === 404 || res.status === 400 || (res.status === 401 && cleanModel !== 'gemini-1.5-flash') || errText.toLowerCase().includes('not found') || errText.toLowerCase().includes('is not supported')) &&
-      !cleanModel.includes('gemini-1.5-flash') &&
+      (res.status === 404 || res.status === 400 || (res.status === 401 && cleanModel !== 'gemini-3.6-flash') || errText.toLowerCase().includes('not found') || errText.toLowerCase().includes('is not supported')) &&
+      !cleanModel.includes('gemini-3.6-flash') &&
       !(opts as any)._retriedModel
     ) {
-      console.warn(`[Gemini Fallback] Model ${cleanModel} gặp lỗi, tự động thử với gemini-1.5-flash`);
+      console.warn(`[Gemini Fallback] Model ${cleanModel} gặp lỗi, tự động thử với gemini-3.6-flash`);
       return callGemini({
         ...opts,
-        model: 'gemini-1.5-flash',
+        model: 'gemini-3.6-flash',
         _retriedModel: true,
       } as any);
     }
@@ -1363,12 +1416,7 @@ async function callGemini(opts: {
 
     if (res.status === 401 && (errText.includes('API_KEY_SERVICE_BLOCKED') || errText.includes('UNAUTHENTICATED'))) {
       throw new Error(
-        `[LỖI HTTP 401 - API KEY BỊ CHẶN BỞI GOOGLE CLOUD]:\n` +
-        `API Key này được tạo từ Google Cloud Console nhưng dự án chưa bật dịch vụ Generative Language API.\n\n` +
-        `👉 CÁCH KHẮC PHỤC HOẠT ĐỘNG 100% NGAY LẬP TỨC:\n` +
-        `1. Lấy API Key miễn phí không bị giới hạn tại Google AI Studio: https://aistudio.google.com/app/apikey (Tạo 1-click là dùng được ngay mọi model Gemini)\n` +
-        `2. Hoặc nếu muốn dùng tiếp key GCP hiện tại: Bật "Generative Language API" tại https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com\n\n` +
-        `Chi tiết lỗi từ máy chủ: ${errText.trim()}`
+        `[LỖI HTTP 401]: API Key không hợp lệ hoặc dịch vụ bị chặn bởi máy chủ.\nChi tiết: ${errText.trim()}`
       );
     }
 

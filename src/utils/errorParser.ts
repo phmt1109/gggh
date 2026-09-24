@@ -82,11 +82,11 @@ export function parseApiError(rawError: string): ParsedApiError {
     lower.includes('in_flight_budget_exhausted') ||
     lower.includes('upgrade to a paid account')
   ) {
-    summary = 'Tài khoản OpenRouter của bạn đã hết số dư / không đủ credit cho model này (HTTP 402).';
-    hint = '💡 Hướng dẫn khắc phục:\n1. Chọn model Miễn Phí của OpenRouter (có đuôi ":free"): ví dụ "meta-llama/llama-3.3-70b-instruct:free", "deepseek/deepseek-r1:free", "google/gemini-2.0-flash-exp:free", "qwen/qwen-2.5-72b-instruct:free".\n2. Nạp thêm credits tại: https://openrouter.ai/settings/credits\n3. Hoặc chuyển sang Preset "Google Gemini" với API Key miễn phí từ aistudio.google.com.';
+    summary = 'Tài khoản không đủ hạn mức hoặc credit để thực hiện yêu cầu này (HTTP 402).';
+    hint = 'Vui lòng kiểm tra số dư tài khoản hoặc đổi sang model miễn phí.';
   } else if (body.includes('API_KEY_SERVICE_BLOCKED') || body.includes('Expected OAuth 2 access token')) {
-    summary = 'Mô hình này yêu cầu tài khoản nội bộ (OAuth 2) hoặc API Key bị giới hạn quyền.';
-    hint = 'Mô hình bạn chọn (ví dụ antigravity/experimental) không mở cho API Key thông thường. Hãy chọn các model chính thức như gemini-2.5-flash, gemini-2.5-pro, hoặc gemini-1.5-flash.';
+    summary = 'API Key Google Cloud bị chặn do chưa bật Generative Language API (HTTP 401).';
+    hint = 'Kiểm tra lại quyền API Key hoặc bật Generative Language API trên Google Cloud Console.';
   } else if (parsedJson?.error?.message) {
     summary = parsedJson.error.message;
   } else if (parsedJson?.message) {
