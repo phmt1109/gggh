@@ -11,6 +11,7 @@ import {
   getWebSearchInstructionPrompt,
   isCodingOrUiRequest,
   isCreativeWritingRequest,
+  isDeepTask,
   isFeedbackOrPraise,
   JAILBREAK_PROMPTS,
   MANDATE_TAIL,
@@ -1139,13 +1140,29 @@ async function callGemini(opts: {
     parts: [{ text: m.content }],
   }));
 
+  // Analyze if user message is a deep complex task (coding, deep math, long essay)
+  const lastUserMsg = messages.filter((m) => m.role === 'user').slice(-1)[0]?.content || '';
+  const requiresDeepThinking = isDeepTask(lastUserMsg);
+
+  const generationConfig: any = {
+    temperature: settings.temperature,
+    maxOutputTokens: settings.maxTokens,
+    ...(typeof settings.topP === 'number' ? { topP: settings.topP } : {}),
+  };
+
+  // Thinking optimization: For Gemini 2.5 / 2.0 reasoning models,
+  // set thinkingBudget = 0 for standard conversational messages to eliminate the 3-5s thinking delay and respond INSTANTLY.
+  // When deep reasoning is actually required (coding, essay writing, deep analysis), allocate 2048 thinking tokens.
+  const isThinkingModel = cleanModel.includes('2.5') || cleanModel.includes('thinking') || cleanModel.includes('thinking-exp');
+  if (isThinkingModel && !(opts as any)._noThinking) {
+    generationConfig.thinkingConfig = {
+      thinkingBudget: requiresDeepThinking ? 2048 : 0,
+    };
+  }
+
   const body: any = {
     contents,
-    generationConfig: {
-      temperature: settings.temperature,
-      maxOutputTokens: settings.maxTokens,
-      ...(typeof settings.topP === 'number' ? { topP: settings.topP } : {}),
-    },
+    generationConfig,
   };
 
   // Google Search Grounding: tìm kiếm web thời gian thực (Tắt khi ở chế độ 18+ để không kích hoạt bộ lọc kiểm duyệt bổ sung của Google Search)
@@ -1171,7 +1188,8 @@ async function callGemini(opts: {
   }
 
   // Helper function to send request
-  const executeGeminiRequest = async (authMode: 'header' | 'query') => {
+  const executeGeminiRequest = async (authMode: 'dual' | 'header' | 'query') => {
+    const sep = endpoint.includes('?') ? '&' : '?';
     let requestUrl = `${cleanBaseUrl}/models/${cleanModel}:${endpoint}`;
     const reqHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -1180,10 +1198,14 @@ async function callGemini(opts: {
 
     if (isToken) {
       reqHeaders['Authorization'] = `Bearer ${cleanKey}`;
+    } else if (authMode === 'dual') {
+      if (cleanKey) {
+        reqHeaders['x-goog-api-key'] = cleanKey;
+        requestUrl = `${cleanBaseUrl}/models/${cleanModel}:${endpoint}${sep}key=${encodeURIComponent(cleanKey)}`;
+      }
     } else if (authMode === 'header') {
       if (cleanKey) reqHeaders['x-goog-api-key'] = cleanKey;
     } else {
-      const sep = endpoint.includes('?') ? '&' : '?';
       requestUrl = `${cleanBaseUrl}/models/${cleanModel}:${endpoint}${cleanKey ? `${sep}key=${encodeURIComponent(cleanKey)}` : ''}`;
     }
 
@@ -1201,10 +1223,10 @@ async function callGemini(opts: {
     return { response, requestUrl };
   };
 
-  // Attempt 1: Header method (Google official recommendation, avoids duplicate credential conflicts)
-  let { response: res, requestUrl: url } = await executeGeminiRequest('header');
+  // Attempt 1: Dual method (Header + Query param for highest compatibility across Google AI Studio & GCP)
+  let { response: res, requestUrl: url } = await executeGeminiRequest('dual');
 
-  // If 401 or authentication error, try Attempt 2: Query param method
+  // If 401 or authentication error, try Attempt 2: Query param only
   if (!res.ok && !isToken && (res.status === 401 || res.status === 403)) {
     const checkText = await res.clone().text().catch(() => '');
     if (
@@ -1220,12 +1242,12 @@ async function callGemini(opts: {
     }
   }
 
-  // If still fails with 401/403/API_KEY_SERVICE_BLOCKED, try Attempt 3: Official OpenAI-compatible endpoint
+  // If still fails with 401/403/API_KEY_SERVICE_BLOCKED, try Attempt 3: Official Google OpenAI-compatible endpoint
   if (!res.ok && (res.status === 401 || res.status === 403)) {
     const checkText = await res.clone().text().catch(() => '');
-    if (checkText.includes('API_KEY_SERVICE_BLOCKED') || checkText.includes('UNAUTHENTICATED')) {
+    if (checkText.includes('API_KEY_SERVICE_BLOCKED') || checkText.includes('UNAUTHENTICATED') || res.status === 401) {
       try {
-        const openaiUrl = `${cleanBaseUrl}/openai`;
+        const openaiUrl = cleanBaseUrl.replace(/\/+$/, '') + '/openai';
         return await callOpenAI({
           baseUrl: openaiUrl,
           apiKey: cleanKey,
@@ -1237,8 +1259,8 @@ async function callGemini(opts: {
           onDelta,
           abortSignal,
         });
-      } catch {
-        // Continue to error reporting below if OpenAI format fails as well
+      } catch (openAiErr) {
+        console.warn('[Gemini OpenAI-endpoint fallback error]:', openAiErr);
       }
     }
   }
@@ -1270,6 +1292,14 @@ async function callGemini(opts: {
         ...opts,
         model: 'gemini-2.5-flash',
         _retriedModel: true,
+      } as any);
+    }
+
+    // Check if error is thinkingConfig related on Gemini (HTTP 400)
+    if (!(opts as any)._noThinking && res.status === 400 && (errText.toLowerCase().includes('thinking') || errText.toLowerCase().includes('thinkingconfig'))) {
+      return callGemini({
+        ...opts,
+        _noThinking: true,
       } as any);
     }
 

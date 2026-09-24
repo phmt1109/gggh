@@ -137,6 +137,20 @@ export function isCodingOrUiRequest(text: string): boolean {
 }
 
 /**
+ * Nhận diện các câu hỏi hoặc tác vụ tư duy phức tạp (lập trình, giải toán, viết luận văn/bài báo, phân tích sâu)
+ */
+export function isDeepTask(text: string): boolean {
+  const trimmed = (text || '').trim().toLowerCase();
+  if (!trimmed) return false;
+  if (isCodingOrUiRequest(trimmed)) return true;
+  return (
+    /(thuật toán|giải toán|toán học|viết bài luận|nghiên cứu|phân tích chi tiết|giải thích chi tiết|chứng minh|so sánh chi tiết|bài văn|tiểu luận|kịch bản chi tiết|nghị luận|luận văn|hãy viết bài văn|hãy viết bài luận|phân tích chuyên sâu)/i.test(
+      trimmed
+    )
+  );
+}
+
+/**
  * Kiểm tra xem người dùng có đang yêu cầu tải file, xuất file hoặc gộp tất cả mã nguồn vào một file HTML không
  */
 export function isDownloadOrFileRequest(text: string): boolean {
