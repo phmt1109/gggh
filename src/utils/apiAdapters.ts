@@ -6,6 +6,7 @@ import {
   DEFAULT_SETTINGS,
   DEFAULT_SYSTEM_NORMAL,
   DEFAULT_SYSTEM_NSFW,
+  detectPronounInstruction,
   getDynamicMandateTail,
   getRealtimeContextPrompt,
   getWebSearchInstructionPrompt,
@@ -120,7 +121,13 @@ export function trimContext(messages: ChatMessage[], limit: number): ChatMessage
   return smartTrimContext(messages, limit);
 }
 
-export function getActiveSystem(settings: Settings, retryAttempt: number = 0): string {
+export function getActiveSystem(
+  settings: Settings,
+  retryAttempt: number = 0,
+  messages?: ChatMessage[] | { role: string; content: string }[]
+): string {
+  const pronounRule = detectPronounInstruction(messages);
+
   if (settings.nsfw) {
     const custom = (settings.systemNSFW || '').trim();
     const baseCore = DEFAULT_SYSTEM_NSFW;
@@ -132,12 +139,13 @@ export function getActiveSystem(settings: Settings, retryAttempt: number = 0): s
     const strategyPrompt = JAILBREAK_PROMPTS[chosenStrategy] || '';
 
     if (custom) {
-      return `${custom}\n\n${baseCore}\n\n${strategyPrompt}`;
+      return `${custom}\n\n${baseCore}\n\n${strategyPrompt}\n\n${pronounRule}`;
     }
-    return `${baseCore}\n\n${strategyPrompt}`;
+    return `${baseCore}\n\n${strategyPrompt}\n\n${pronounRule}`;
   }
   const custom = (settings.systemNormal || '').trim();
-  return custom || DEFAULT_SYSTEM_NORMAL;
+  const basePrompt = custom || DEFAULT_SYSTEM_NORMAL;
+  return `${basePrompt}\n\n${pronounRule}`;
 }
 
 /**
@@ -597,7 +605,7 @@ export async function executeChat(params: ChatExecuteParams): Promise<ChatExecut
   const trimmed = trimContext(messages, settings.contextLimit);
 
   // System prompt: Lấy từ settings / bối cảnh sáng tác và xoay tua chiến lược khi cần thử lại
-  const activeSystemPrompt = getActiveSystem(settings, retryAttempt);
+  const activeSystemPrompt = getActiveSystem(settings, retryAttempt, trimmed);
 
   // Payload messages giữ nguyên vẹn nội dung của người dùng
   const payloadMessages = await Promise.all(
@@ -718,6 +726,8 @@ async function callOpenAI(opts: {
   abortSignal?: AbortSignal;
 }): Promise<string> {
   const { baseUrl, apiKey, model, systemPrompt, messages, settings, stream, onDelta, abortSignal } = opts;
+  const cleanApiKey = (apiKey || '').trim().replace(/^Bearer\s+/i, '').replace(/^["']|["']$/g, '');
+  const isOpenRouter = baseUrl.toLowerCase().includes('openrouter.ai');
 
   const formattedMessages: { role: string; content: string }[] = [];
   if (systemPrompt) {
@@ -731,8 +741,12 @@ async function callOpenAI(opts: {
     'Content-Type': 'application/json',
     Accept: stream ? 'text/event-stream, application/json' : 'application/json',
   };
-  if (apiKey) {
-    headers['Authorization'] = `Bearer ${apiKey}`;
+  if (cleanApiKey) {
+    headers['Authorization'] = `Bearer ${cleanApiKey}`;
+  }
+  if (isOpenRouter) {
+    headers['HTTP-Referer'] = 'https://ai.studio';
+    headers['X-Title'] = 'AI Workspace';
   }
 
   const body: any = {
@@ -942,15 +956,17 @@ async function callAnthropic(opts: {
   abortSignal?: AbortSignal;
 }): Promise<string> {
   const { baseUrl, apiKey, model, systemPrompt, messages, settings, stream, onDelta, abortSignal } = opts;
+  const cleanApiKey = (apiKey || '').trim().replace(/^Bearer\s+/i, '').replace(/^["']|["']$/g, '');
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'anthropic-version': '2023-06-01',
+    'anthropic-dangerous-direct-browser-access': 'true',
     Accept: stream ? 'text/event-stream, application/json' : 'application/json',
   };
-  if (apiKey) {
-    headers['x-api-key'] = apiKey;
-    headers['Authorization'] = `Bearer ${apiKey}`; // for Perchance superFetch proxy
+  if (cleanApiKey) {
+    headers['x-api-key'] = cleanApiKey;
+    headers['Authorization'] = `Bearer ${cleanApiKey}`;
   }
 
   const formattedMessages = messages.map((m) => ({
@@ -1131,7 +1147,7 @@ async function callGemini(opts: {
   cleanBaseUrl = cleanBaseUrl.replace(/\/models$/, '');
 
   const endpoint = stream ? 'streamGenerateContent?alt=sse' : 'generateContent';
-  const cleanKey = apiKey.trim().replace(/^["']|["']$/g, '');
+  const cleanKey = apiKey.trim().replace(/^Bearer\s+/i, '').replace(/^["']|["']$/g, '');
   const isToken = cleanKey.startsWith('AQ.') || cleanKey.startsWith('ya29.');
 
   // Convert messages to Gemini format
@@ -1150,14 +1166,22 @@ async function callGemini(opts: {
     ...(typeof settings.topP === 'number' ? { topP: settings.topP } : {}),
   };
 
-  // Thinking optimization: For Gemini 2.5 / 2.0 reasoning models,
-  // set thinkingBudget = 0 for standard conversational messages to eliminate the 3-5s thinking delay and respond INSTANTLY.
-  // When deep reasoning is actually required (coding, essay writing, deep analysis), allocate 2048 thinking tokens.
+  // Thinking optimization:
+  // For Gemini 2.5 Flash / Flash Lite: Set thinkingBudget = 0 for standard conversation to eliminate all thinking delay (0-latency instant streaming).
+  // When deep reasoning is actually required (coding, essay writing, deep analysis), allocate a lean 1024 thinking budget for swift completion.
+  // For Gemini 2.5 Pro: Pro requires positive budget (>=128).
+  const is25Pro = cleanModel.includes('2.5-pro') || cleanModel.includes('2.5-pro-exp');
   const isThinkingModel = cleanModel.includes('2.5') || cleanModel.includes('thinking') || cleanModel.includes('thinking-exp');
   if (isThinkingModel && !(opts as any)._noThinking) {
-    generationConfig.thinkingConfig = {
-      thinkingBudget: requiresDeepThinking ? 2048 : 0,
-    };
+    if (is25Pro) {
+      generationConfig.thinkingConfig = {
+        thinkingBudget: requiresDeepThinking ? 2048 : 128,
+      };
+    } else {
+      generationConfig.thinkingConfig = {
+        thinkingBudget: requiresDeepThinking ? 1024 : 0,
+      };
+    }
   }
 
   const body: any = {
@@ -1187,26 +1211,28 @@ async function callGemini(opts: {
     ];
   }
 
-  // Helper function to send request
-  const executeGeminiRequest = async (authMode: 'dual' | 'header' | 'query') => {
+  // Helper function to send request with specific auth mode
+  const executeGeminiRequest = async (authMode: 'header' | 'query' | 'bearer' | 'v1', targetModel: string = cleanModel) => {
+    let activeBase = cleanBaseUrl;
+    if (authMode === 'v1') {
+      activeBase = cleanBaseUrl.replace('/v1beta', '/v1');
+    }
+
     const sep = endpoint.includes('?') ? '&' : '?';
-    let requestUrl = `${cleanBaseUrl}/models/${cleanModel}:${endpoint}`;
+    let requestUrl = `${activeBase}/models/${targetModel}:${endpoint}`;
     const reqHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: stream ? 'text/event-stream, application/json' : 'application/json',
     };
 
-    if (isToken) {
+    if (isToken || authMode === 'bearer') {
       reqHeaders['Authorization'] = `Bearer ${cleanKey}`;
-    } else if (authMode === 'dual') {
-      if (cleanKey) {
-        reqHeaders['x-goog-api-key'] = cleanKey;
-        requestUrl = `${cleanBaseUrl}/models/${cleanModel}:${endpoint}${sep}key=${encodeURIComponent(cleanKey)}`;
-      }
     } else if (authMode === 'header') {
       if (cleanKey) reqHeaders['x-goog-api-key'] = cleanKey;
-    } else {
-      requestUrl = `${cleanBaseUrl}/models/${cleanModel}:${endpoint}${cleanKey ? `${sep}key=${encodeURIComponent(cleanKey)}` : ''}`;
+    } else if (authMode === 'query' || authMode === 'v1') {
+      if (cleanKey) {
+        requestUrl = `${requestUrl}${sep}key=${encodeURIComponent(cleanKey)}`;
+      }
     }
 
     const response = await apiFetch(
@@ -1223,10 +1249,10 @@ async function callGemini(opts: {
     return { response, requestUrl };
   };
 
-  // Attempt 1: Dual method (Header + Query param for highest compatibility across Google AI Studio & GCP)
-  let { response: res, requestUrl: url } = await executeGeminiRequest('dual');
+  // Attempt 1: Header auth (x-goog-api-key) - standard for Google AI Studio
+  let { response: res, requestUrl: url } = await executeGeminiRequest(isToken ? 'bearer' : 'header');
 
-  // If 401 or authentication error, try Attempt 2: Query param only
+  // If 401 or authentication error, try Attempt 2: Query param only (?key=...)
   if (!res.ok && !isToken && (res.status === 401 || res.status === 403)) {
     const checkText = await res.clone().text().catch(() => '');
     if (
@@ -1234,20 +1260,27 @@ async function callGemini(opts: {
       checkText.includes('API_KEY_SERVICE_BLOCKED') ||
       checkText.includes('invalid authentication credentials')
     ) {
-      const retryResult = await executeGeminiRequest('query');
-      if (retryResult.response.ok) {
-        res = retryResult.response;
-        url = retryResult.requestUrl;
+      const retryQuery = await executeGeminiRequest('query');
+      if (retryQuery.response.ok) {
+        res = retryQuery.response;
+        url = retryQuery.requestUrl;
+      } else {
+        // Try Attempt 3: v1 stable endpoint with query param
+        const retryV1 = await executeGeminiRequest('v1');
+        if (retryV1.response.ok) {
+          res = retryV1.response;
+          url = retryV1.requestUrl;
+        }
       }
     }
   }
 
-  // If still fails with 401/403/API_KEY_SERVICE_BLOCKED, try Attempt 3: Official Google OpenAI-compatible endpoint
+  // If still fails with 401/403/API_KEY_SERVICE_BLOCKED, try Attempt 4: Official Google OpenAI-compatible endpoint
   if (!res.ok && (res.status === 401 || res.status === 403)) {
     const checkText = await res.clone().text().catch(() => '');
     if (checkText.includes('API_KEY_SERVICE_BLOCKED') || checkText.includes('UNAUTHENTICATED') || res.status === 401) {
       try {
-        const openaiUrl = cleanBaseUrl.replace(/\/+$/, '') + '/openai';
+        const openaiUrl = cleanBaseUrl.replace(/\/+$/, '') + '/openai/v1';
         return await callOpenAI({
           baseUrl: openaiUrl,
           apiKey: cleanKey,
@@ -1280,17 +1313,16 @@ async function callGemini(opts: {
       } as any);
     }
 
-    // Check if error is model not found or restricted model (HTTP 404, 400, or 401 API_KEY_SERVICE_BLOCKED for internal models)
+    // Check if error is model not found or restricted model (HTTP 404, 400, or 401 API_KEY_SERVICE_BLOCKED for specific models)
     if (
-      (res.status === 404 || res.status === 400 || (res.status === 401 && (errText.includes('API_KEY_SERVICE_BLOCKED') || cleanModel.includes('antigravity'))) || errText.toLowerCase().includes('not found') || errText.toLowerCase().includes('is not supported')) &&
-      !cleanModel.includes('gemini-2.5-flash') &&
+      (res.status === 404 || res.status === 400 || (res.status === 401 && cleanModel !== 'gemini-1.5-flash') || errText.toLowerCase().includes('not found') || errText.toLowerCase().includes('is not supported')) &&
       !cleanModel.includes('gemini-1.5-flash') &&
       !(opts as any)._retriedModel
     ) {
-      console.warn(`[Gemini Fallback] Model ${cleanModel} không khả dụng với API Key này, tự động chuyển sang gemini-2.5-flash`);
+      console.warn(`[Gemini Fallback] Model ${cleanModel} gặp lỗi, tự động thử với gemini-1.5-flash`);
       return callGemini({
         ...opts,
-        model: 'gemini-2.5-flash',
+        model: 'gemini-1.5-flash',
         _retriedModel: true,
       } as any);
     }
@@ -1318,6 +1350,7 @@ async function callGemini(opts: {
         retryWithNoSafety: true,
       });
     }
+
     addApiLog({
       type: 'chat',
       provider: 'Google Gemini',
@@ -1327,6 +1360,18 @@ async function callGemini(opts: {
       httpCode: res.status,
       logText: errText || 'Không có phản hồi nội dung từ máy chủ',
     });
+
+    if (res.status === 401 && (errText.includes('API_KEY_SERVICE_BLOCKED') || errText.includes('UNAUTHENTICATED'))) {
+      throw new Error(
+        `[LỖI HTTP 401 - API KEY BỊ CHẶN BỞI GOOGLE CLOUD]:\n` +
+        `API Key này được tạo từ Google Cloud Console nhưng dự án chưa bật dịch vụ Generative Language API.\n\n` +
+        `👉 CÁCH KHẮC PHỤC HOẠT ĐỘNG 100% NGAY LẬP TỨC:\n` +
+        `1. Lấy API Key miễn phí không bị giới hạn tại Google AI Studio: https://aistudio.google.com/app/apikey (Tạo 1-click là dùng được ngay mọi model Gemini)\n` +
+        `2. Hoặc nếu muốn dùng tiếp key GCP hiện tại: Bật "Generative Language API" tại https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com\n\n` +
+        `Chi tiết lỗi từ máy chủ: ${errText.trim()}`
+      );
+    }
+
     const cleanLog = errText ? errText.trim() : 'Máy chủ từ chối yêu cầu';
     throw new Error(`[LỖI HTTP ${res.status}]: ${cleanLog}\n• API: ${url}`);
   }
