@@ -15,28 +15,6 @@ async function startServer() {
     res.json({ status: 'ok' });
   });
 
-  // Direct access and download for standalone.html bundled file
-  app.get('/standalone.html', (req, res) => {
-    const filePath = path.join(process.cwd(), 'standalone.html');
-    if (fs.existsSync(filePath)) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.sendFile(filePath);
-    } else {
-      res.status(404).send('standalone.html not found. Please build the project.');
-    }
-  });
-
-  app.get('/api/download-standalone', (req, res) => {
-    const filePath = path.join(process.cwd(), 'standalone.html');
-    if (fs.existsSync(filePath)) {
-      res.setHeader('Content-Disposition', 'attachment; filename="standalone.html"');
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.sendFile(filePath);
-    } else {
-      res.status(404).json({ error: 'standalone.html not found' });
-    }
-  });
-
   // Endpoint to research/fetch and parse clean text from any URL
   app.get('/api/web-research', async (req, res) => {
     try {
