@@ -21,11 +21,15 @@ export const Composer: React.FC<ComposerProps> = ({
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto resize textarea height
+  // Auto resize textarea height strictly bounded to avoid abnormal stretching
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 220)}px`;
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = '44px';
+      const scrollHeight = el.scrollHeight;
+      const clampedHeight = Math.min(Math.max(scrollHeight, 44), 180);
+      el.style.height = `${clampedHeight}px`;
+      el.style.overflowY = scrollHeight > 180 ? 'auto' : 'hidden';
     }
   }, [input]);
 
