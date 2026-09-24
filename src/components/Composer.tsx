@@ -25,11 +25,21 @@ export const Composer: React.FC<ComposerProps> = ({
   useEffect(() => {
     const el = textareaRef.current;
     if (el) {
+      if (!input) {
+        el.style.height = '44px';
+        el.style.overflowY = 'hidden';
+        return;
+      }
       el.style.height = '44px';
       const scrollHeight = el.scrollHeight;
-      const clampedHeight = Math.min(Math.max(scrollHeight, 44), 180);
-      el.style.height = `${clampedHeight}px`;
-      el.style.overflowY = scrollHeight > 180 ? 'auto' : 'hidden';
+      if (scrollHeight > 44) {
+        const clampedHeight = Math.min(scrollHeight, 150);
+        el.style.height = `${clampedHeight}px`;
+        el.style.overflowY = scrollHeight > 150 ? 'auto' : 'hidden';
+      } else {
+        el.style.height = '44px';
+        el.style.overflowY = 'hidden';
+      }
     }
   }, [input]);
 

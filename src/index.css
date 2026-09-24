@@ -624,12 +624,12 @@ input:focus, select:focus, textarea:focus {
   max-width: 100%;
   resize: none;
   min-height: 44px;
-  max-height: 180px;
+  max-height: 150px;
   height: 44px;
   border-radius: 12px;
   padding: 10px 14px;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 22px;
   box-sizing: border-box;
   overflow-y: hidden;
   overflow-x: hidden;
