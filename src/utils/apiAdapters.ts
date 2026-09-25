@@ -1188,7 +1188,11 @@ async function callGemini(opts: {
   const is25Pro = cleanModel.includes('2.5-pro') || cleanModel.includes('2.5-pro-exp');
   const isThinkingModel = cleanModel.includes('2.5') || cleanModel.includes('thinking') || cleanModel.includes('thinking-exp');
   if (isThinkingModel && !(opts as any)._noThinking) {
-    if (is25Pro) {
+    if (settings.nsfw) {
+      generationConfig.thinkingConfig = {
+        thinkingBudget: 0,
+      };
+    } else if (is25Pro) {
       generationConfig.thinkingConfig = {
         thinkingBudget: requiresDeepThinking ? 2048 : 128,
       };
