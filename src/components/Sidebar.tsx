@@ -59,7 +59,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside id="sidebar" className={isOpen ? 'open' : ''}>
         <div className="side-top">
           <div className="brand">
-            <div className="logo">⚡</div>
+            <div className="logo" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M12 2C12 7.8 12 7.8 17.8 12C12 16.2 12 16.2 12 22C12 16.2 12 16.2 6.2 12C12 7.8 12 7.8 12 2Z"
+                  fill="url(#brandStarGrad)"
+                />
+                <path
+                  d="M18.5 3C18.5 4.8 18.5 4.8 20.3 6.5C18.5 8.2 18.5 8.2 18.5 10C18.5 8.2 18.5 8.2 16.7 6.5C18.5 4.8 18.5 4.8 18.5 3Z"
+                  fill="#c7d2fe"
+                />
+                <defs>
+                  <linearGradient id="brandStarGrad" x1="6.2" y1="2" x2="17.8" y2="22" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#ffffff" />
+                    <stop offset="0.5" stopColor="#e0e7ff" />
+                    <stop offset="1" stopColor="#818cf8" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
             <span>AI</span>
           </div>
           <button

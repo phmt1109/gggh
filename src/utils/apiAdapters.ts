@@ -761,7 +761,7 @@ async function callOpenAI(opts: {
   }
   if (isOpenRouter) {
     headers['HTTP-Referer'] = 'https://ai.studio';
-    headers['X-Title'] = 'AI Workspace';
+    headers['X-Title'] = 'AI';
   }
 
   const body: any = {

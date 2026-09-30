@@ -1,11 +1,11 @@
 {
-  "name": "AI Workspace",
+  "name": "AI",
   "short_name": "AI",
-  "description": "Không gian làm việc AI Workspace đa mô hình chuẩn Apple Liquid Glass",
+  "description": "Ứng dụng AI đa mô hình chuẩn Apple Liquid Glass",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#050508",
-  "theme_color": "#050508",
+  "background_color": "#070913",
+  "theme_color": "#070913",
   "orientation": "any",
   "icons": [
     {

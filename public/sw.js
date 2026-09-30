@@ -1,5 +1,5 @@
-// Service Worker for AI Workspace PWA
-const CACHE_NAME = 'ai-workspace-cache-v1';
+// Service Worker for AI PWA
+const CACHE_NAME = 'ai-cache-v3';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
