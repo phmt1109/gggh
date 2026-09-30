@@ -140,6 +140,34 @@ export default function App() {
     };
   }, []);
 
+  // Apple Dynamic Liquid Glass: Specular Hotspot real-time vector tracking
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      const glassElements = document.querySelectorAll(
+        '.liquid-glass, #sidebar, #main, .prov, .modal-card, .msg-inner, #composer, .btn-send, .btn-add, #topbar, .settings-chip'
+      );
+      const mouseX = e.clientX;
+      const mouseY = e.clientY;
+
+      glassElements.forEach((node) => {
+        const el = node as HTMLElement;
+        const rect = el.getBoundingClientRect();
+        if (
+          mouseX >= rect.left - 80 &&
+          mouseX <= rect.right + 80 &&
+          mouseY >= rect.top - 80 &&
+          mouseY <= rect.bottom + 80
+        ) {
+          el.style.setProperty('--mouse-x', `${mouseX - rect.left}px`);
+          el.style.setProperty('--mouse-y', `${mouseY - rect.top}px`);
+        }
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
   const initDefaultProviders = () => {
     setProviders([]);
     setActiveProviderId(null);
@@ -788,10 +816,16 @@ export default function App() {
           setSidebarOpen(false);
         }}
         onAddProvider={() => {
+          if (typeof window !== 'undefined' && window.innerWidth <= 860) {
+            setSidebarOpen(false);
+          }
           setEditingProvider(null);
           setModalOpen(true);
         }}
         onEditProvider={(prov) => {
+          if (typeof window !== 'undefined' && window.innerWidth <= 860) {
+            setSidebarOpen(false);
+          }
           setEditingProvider(prov);
           setModalOpen(true);
         }}

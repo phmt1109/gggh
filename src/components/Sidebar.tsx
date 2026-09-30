@@ -49,6 +49,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
+      {isOpen && (
+        <div
+          className="sidebar-backdrop mobile-only"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
       <aside id="sidebar" className={isOpen ? 'open' : ''}>
         <div className="side-top">
           <div className="brand">
@@ -86,7 +93,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onClick={() => onSelectProvider(prov.id)}
                 >
                   <div className="prov-top">
-                    <span className={`dot ${prov.status || 'idle'}`} />
                     <span className="prov-name" title={prov.name}>
                       {prov.name}
                     </span>
@@ -116,7 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {prov.status === 'ok' ? (
                     <div className="prov-status-panel ok">
                       <div className="status-panel-head">
-                        <span className="status-badge ok">🟢 KẾT NỐI THÀNH CÔNG</span>
+                        <span className="status-badge ok">✓ KẾT NỐI THÀNH CÔNG</span>
                         <span className="status-count">{modelCount} model{modelCount !== 1 ? 's' : ''}</span>
                       </div>
                       <div className="status-panel-body">
@@ -173,6 +179,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       title="Chỉnh sửa cấu hình"
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (typeof window !== 'undefined' && window.innerWidth <= 860) {
+                          onClose();
+                        }
                         onEditProvider(prov);
                       }}
                     >
@@ -196,7 +205,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        <button id="addProvBtn" className="btn-add" onClick={onAddProvider}>
+        <button
+          id="addProvBtn"
+          className="btn-add"
+          onClick={() => {
+            if (typeof window !== 'undefined' && window.innerWidth <= 860) {
+              onClose();
+            }
+            onAddProvider();
+          }}
+        >
           + Thêm nhà cung cấp
         </button>
 
@@ -259,15 +277,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
       </aside>
-
-      {/* Mobile backdrop */}
-      {isOpen && (
-        <div
-          className="overlay"
-          onClick={onClose}
-          style={{ display: 'block' }}
-        />
-      )}
     </>
   );
 };

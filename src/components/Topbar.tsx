@@ -55,10 +55,7 @@ export const Topbar: React.FC<TopbarProps> = ({
         onClick={onEditActiveProvider}
       >
         {activeProvider ? (
-          <>
-            <span className={`dot ${activeProvider.status || 'idle'}`} />
-            <span className="prov-btn-label">{activeProvider.name}</span>
-          </>
+          <span className="prov-btn-label">{activeProvider.name}</span>
         ) : (
           '+ Thêm nhà cung cấp'
         )}
