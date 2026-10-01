@@ -121,7 +121,6 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
           <div className="msg-inner">
             <div className="msg-head">
               <span className="flex items-center gap-1.5">
-                <span className="live-pulse-dot" />
                 ✦ TRỢ LÝ AI
               </span>
               <span style={{ color: 'var(--accent2)', fontSize: 11, marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>

@@ -94,6 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           🔒 <strong>Bảo mật:</strong> API key chỉ lưu tại localStorage trình duyệt và gửi thẳng tới nhà cung cấp đã chọn.
         </p>
 
+        {/* Vùng cuộn danh sách nhà cung cấp độc lập */}
         <div className="providers" id="providersList">
           {providers.length === 0 ? (
             <div style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: '24px 8px' }}>
@@ -223,76 +224,76 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        <button
-          id="addProvBtn"
-          className="btn-add"
-          onClick={() => {
-            if (typeof window !== 'undefined' && window.innerWidth <= 860) {
-              onClose();
-            }
-            onAddProvider();
-          }}
-        >
-          + Thêm nhà cung cấp
-        </button>
-
-        <div className="side-bottom">
-          <div className="row">
-            <span>Ngữ cảnh gửi</span>
-            <select
-              id="contextSelect"
-              value={contextLimit}
-              onChange={(e) => onChangeContextLimit(Number(e.target.value))}
-            >
-              <option value="0">Tất cả hội thoại</option>
-              <option value="6">6 tin gần nhất</option>
-              <option value="12">12 tin gần nhất</option>
-              <option value="20">20 tin gần nhất</option>
-              <option value="40">40 tin gần nhất</option>
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', gap: '6px' }}>
-            <button
-              id="exportBackupBtn"
-              className="btn-ghost small"
-              style={{ flex: 1, padding: '5px 4px', textAlign: 'center' }}
-              onClick={onExportBackup}
-              title="Tải file sao lưu (JSON) chứa API key và cấu hình"
-            >
-              💾 Sao lưu
-            </button>
-            <label
-              id="importBackupLabel"
-              className="btn-ghost small"
-              style={{ flex: 1, padding: '5px 4px', textAlign: 'center', cursor: 'pointer', display: 'inline-block' }}
-              title="Khôi phục dữ liệu từ file sao lưu JSON"
-            >
-              📥 Khôi phục
-              <input
-                type="file"
-                accept=".json,application/json"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    onImportBackup(file);
-                    e.target.value = '';
-                  }
-                }}
-              />
-            </label>
-          </div>
-
+        {/* Khối chân trang ghim cố định: Nút thêm nhà cung cấp & Cài đặt */}
+        <div className="side-footer">
           <button
-            id="clearAllBtn"
-            className="btn-ghost small"
-            style={{ color: 'var(--danger)', marginTop: 8 }}
-            onClick={onClearAllData}
-            title="Xoá tất cả API key, lịch sử và thiết lập đã lưu"
+            id="addProvBtn"
+            className="btn-add"
+            onClick={() => {
+              if (typeof window !== 'undefined' && window.innerWidth <= 860) {
+                onClose();
+              }
+              onAddProvider();
+            }}
           >
-            🗑️ Xoá toàn bộ dữ liệu
+            + Thêm nhà cung cấp
           </button>
+
+          <div className="side-bottom">
+            <div className="row">
+              <span className="row-label">Ngữ cảnh gửi:</span>
+              <select
+                id="contextSelect"
+                value={contextLimit}
+                onChange={(e) => onChangeContextLimit(Number(e.target.value))}
+              >
+                <option value="0">Toàn bộ</option>
+                <option value="6">6 tin gần nhất</option>
+                <option value="12">12 tin gần nhất</option>
+                <option value="20">20 tin gần nhất</option>
+                <option value="40">40 tin gần nhất</option>
+              </select>
+            </div>
+
+            <div className="side-backup-row">
+              <button
+                id="exportBackupBtn"
+                className="btn-ghost small flex-1"
+                onClick={onExportBackup}
+                title="Tải file sao lưu (JSON) chứa API key và cấu hình"
+              >
+                💾 Sao lưu
+              </button>
+              <label
+                id="importBackupLabel"
+                className="btn-ghost small flex-1 cursor-pointer"
+                title="Khôi phục dữ liệu từ file sao lưu JSON"
+              >
+                📥 Khôi phục
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      onImportBackup(file);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+              </label>
+            </div>
+
+            <button
+              id="clearAllBtn"
+              className="btn-clear-all"
+              onClick={onClearAllData}
+              title="Xoá tất cả API key, lịch sử và thiết lập đã lưu"
+            >
+              🗑️ Xoá toàn bộ dữ liệu
+            </button>
+          </div>
         </div>
       </aside>
     </>
