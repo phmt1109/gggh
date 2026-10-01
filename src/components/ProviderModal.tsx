@@ -351,7 +351,7 @@ export const ProviderModal: React.FC<ProviderModalProps> = ({
               disabled={isTesting}
               onClick={handleTestConnection}
             >
-              {isTesting ? '⏳ Đang kiểm tra & dò danh sách model...' : '⚡ Thử kết nối & Dò model ngay'}
+              {isTesting ? '⏳ Đang kiểm tra & dò danh sách model...' : '✦ Thử kết nối & Dò model ngay'}
             </button>
 
             {/* Test Result Display: Loading / OK / Err */}

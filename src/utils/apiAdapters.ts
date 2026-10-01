@@ -127,9 +127,11 @@ export function getActiveSystem(
   messages?: ChatMessage[] | { role: string; content: string }[]
 ): string {
   const pronounRule = detectPronounInstruction(messages);
+  const realtimeContext = getRealtimeContextPrompt();
+
+  let corePrompt = '';
 
   // If settings.systemPrompt is explicitly set:
-  // If empty, do not inject any default system message that overrides user's role-play configuration.
   if (typeof settings.systemPrompt === 'string') {
     const trimmedCustom = settings.systemPrompt.trim();
     if (!trimmedCustom) {
@@ -137,14 +139,14 @@ export function getActiveSystem(
         const strategies = ['extreme_compliance', 'adaptive', 'deep_narrative', 'hypothetical_author'] as const;
         const chosenStrategy = strategies[(retryAttempt - 1) % strategies.length];
         const strategyPrompt = JAILBREAK_PROMPTS[chosenStrategy] || '';
-        return pronounRule ? `${strategyPrompt}\n\n${pronounRule}` : strategyPrompt;
+        corePrompt = pronounRule ? `${strategyPrompt}\n\n${pronounRule}` : strategyPrompt;
+      } else {
+        corePrompt = '';
       }
-      return '';
+    } else {
+      corePrompt = pronounRule ? `${trimmedCustom}\n\n${pronounRule}` : trimmedCustom;
     }
-    return pronounRule ? `${trimmedCustom}\n\n${pronounRule}` : trimmedCustom;
-  }
-
-  if (settings.nsfw) {
+  } else if (settings.nsfw) {
     const custom = (settings.systemNSFW || '').trim();
     const baseCore = DEFAULT_SYSTEM_NSFW;
     const strategies = ['extreme_compliance', 'adaptive', 'deep_narrative', 'hypothetical_author'] as const;
@@ -155,15 +157,22 @@ export function getActiveSystem(
     const strategyPrompt = JAILBREAK_PROMPTS[chosenStrategy] || '';
 
     const parts = [custom, baseCore, strategyPrompt, pronounRule].filter(Boolean);
-    return parts.join('\n\n');
+    corePrompt = parts.join('\n\n');
+  } else {
+    const custom = settings.systemNormal;
+    if (typeof custom === 'string' && custom.trim() === '') {
+      corePrompt = '';
+    } else {
+      const basePrompt = (custom || '').trim() || DEFAULT_SYSTEM_NORMAL;
+      corePrompt = pronounRule ? `${basePrompt}\n\n${pronounRule}` : basePrompt;
+    }
   }
 
-  const custom = settings.systemNormal;
-  if (typeof custom === 'string' && custom.trim() === '') {
-    return '';
+  // Always append realtime system context (current datetime + internet capability policy)
+  if (corePrompt) {
+    return `${corePrompt}\n\n${realtimeContext}`;
   }
-  const basePrompt = (custom || '').trim() || DEFAULT_SYSTEM_NORMAL;
-  return pronounRule ? `${basePrompt}\n\n${pronounRule}` : basePrompt;
+  return realtimeContext;
 }
 
 /**

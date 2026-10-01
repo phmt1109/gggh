@@ -81,8 +81,8 @@ export function generateIndexHtml(): string {
   .brand{ display:flex; align-items:center; gap:9px; font-weight:700; letter-spacing:.2px; font-size:16px; flex:1; }
   .logo{
     width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
-    background:linear-gradient(135deg,var(--accent),#4a2fd6); color:#fff; font-size:14px;
-    box-shadow:0 0 0 1px #ffffff1a inset;
+    background:linear-gradient(145deg,rgba(30,41,75,0.95),rgba(14,20,40,0.98)); color:#fff; font-size:14px;
+    box-shadow:0 0 10px rgba(99,102,241,0.4), 0 0 0 1px rgba(255,255,255,0.2) inset;
   }
   .disclaimer{
     margin:0; font-size:11.5px; line-height:1.5; color:#ffb7c1;
@@ -270,8 +270,8 @@ export function generateIndexHtml(): string {
   <aside id="sidebar">
     <div class="side-top">
       <div class="brand">
-        <div class="logo">⚡</div>
-        <span>AI Console</span>
+        <div class="logo">✦</div>
+        <span>AI</span>
       </div>
       <button id="closeSidebarBtn" class="icon-btn mobile-only" title="Đóng menu">✕</button>
     </div>

@@ -338,8 +338,8 @@ export function detectPronounInstruction(messages?: { role: string; content: str
 export const ASSISTANT_PREFILL = '';
 
 /**
- * Tạo bối cảnh thời gian thực động: ngày, tháng, năm, thứ, giờ, phút, múi giờ
- * Giúp AI không bao giờ bị ảo giác là đang ở các năm cũ (2021, 2023, 2024...)
+ * Tạo bối cảnh thời gian thực động: ngày, tháng, năm, thứ, giờ, phút, giây, múi giờ
+ * Giúp AI biết chính xác thời gian thực tế hiện tại và nêu rõ giới hạn không thể tự cập nhật internet
  */
 export function getRealtimeContextPrompt(): string {
   const now = new Date();
@@ -350,16 +350,18 @@ export function getRealtimeContextPrompt(): string {
   const yyyy = now.getFullYear();
   const hh = String(now.getHours()).padStart(2, '0');
   const min = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
   const dateStr = `${dd}/${mm}/${yyyy}`;
-  const timeStr = `${hh}:${min}`;
+  const timeStr = `${hh}:${min}:${ss}`;
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Ho_Chi_Minh';
 
-  return `[THỜI GIAN THỰC TẾ & QUYỀN TRUY CẬP]:
-- Thời điểm hiện tại: ${dayOfWeek}, ngày ${dateStr}, lúc ${timeStr} (Múi giờ: ${timeZone}, Năm hiện tại: ${yyyy}).
-- NGUYÊN TẮC:
-  1. Bạn luôn biết chính xác thời gian thực tế hiện tại (ngày, giờ, phút, năm ${yyyy}) để trả lời các câu hỏi về thời gian.
-  2. Nếu người dùng hỏi bạn về quyền truy cập mạng hay internet, bạn chỉ cần giải thích rõ ràng rằng: bạn chỉ có quyền xem và biết thời gian hiện tại, chứ không có quyền cập nhật internet hay truy cập internet trực tiếp.
-  3. Đối với các thông tin kiến thức và sự kiện, bạn hoàn toàn có thể chia sẻ chi tiết toàn bộ kiến thức và thông tin đã được cập nhật tới mốc dữ liệu của bạn.`;
+  return `[THÔNG TIN THỜI GIAN THỰC TẾ TỪ HỆ THỐNG & NGUYÊN TẮC TRUY CẬP]:
+- Thời gian hiện tại do hệ thống cung cấp: ${dayOfWeek}, ngày ${dateStr}, lúc ${timeStr} (Múi giờ: ${timeZone}, Năm: ${yyyy}).
+- NGUYÊN TẮC BẮT BUỘC:
+  1. Bạn CHỈ CÓ QUYỀN xem và biết chính xác ngày, tháng, năm, giờ, phút, giây hiện tại (${timeStr}, ngày ${dateStr}) từ hệ thống.
+  2. Bạn KHÔNG CÓ QUYỀN truy cập internet trực tiếp theo thời gian thực để tra cứu mạng.
+  3. Nếu người dùng hỏi bạn về việc truy cập internet hay dữ liệu thời gian cập nhật, bạn PHẢI NÓI RÕ RÀNG: "Tôi không có quyền truy cập internet trực tiếp. Dữ liệu tri thức của tôi chỉ được cập nhật đến mốc huấn luyện của nhà cung cấp. Tôi chỉ có quyền xem thông tin ngày, giờ, phút, giây hiện tại do hệ thống cung cấp."
+  4. Tuyệt đối không bị ảo giác là đang ở các năm cũ khi được hỏi về ngày giờ hay năm nay (năm hiện tại là ${yyyy}).`;
 }
 
 export function getWebSearchInstructionPrompt(): string {

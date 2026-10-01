@@ -54,39 +54,51 @@ export const Composer: React.FC<ComposerProps> = ({
 
   return (
     <footer id="composer">
-      <textarea
-        ref={textareaRef}
-        id="input"
-        rows={1}
-        placeholder="Nhập tin nhắn... (Enter để gửi, Shift+Enter để xuống dòng)"
-        value={input}
-        onChange={(e) => onChangeInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-        disabled={isGenerating}
-      />
+      <div className="composer-row">
+        <textarea
+          ref={textareaRef}
+          id="input"
+          rows={1}
+          placeholder="Nhập tin nhắn của bạn..."
+          value={input}
+          onChange={(e) => onChangeInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={isGenerating}
+        />
 
-      {isGenerating ? (
-        <button
-          id="stopBtn"
-          type="button"
-          className="btn-stop"
-          onClick={onStop}
-          title="Dừng sinh phản hồi"
-        >
-          ⏹ Dừng
-        </button>
-      ) : (
-        <button
-          id="sendBtn"
-          type="button"
-          className={`btn-send ${isNsfw ? 'nsfw-active' : ''}`}
-          onClick={onSend}
-          disabled={disabled || !input.trim()}
-          title="Gửi tin nhắn (Enter)"
-        >
-          Gửi
-        </button>
-      )}
+        {isGenerating ? (
+          <button
+            id="stopBtn"
+            type="button"
+            className="btn-stop"
+            onClick={onStop}
+            title="Dừng sinh phản hồi"
+          >
+            ⏹ Dừng
+          </button>
+        ) : (
+          <button
+            id="sendBtn"
+            type="button"
+            className={`btn-send ${isNsfw ? 'nsfw-active' : ''}`}
+            onClick={onSend}
+            disabled={disabled || !input.trim()}
+            title="Gửi tin nhắn (Enter)"
+          >
+            Gửi
+          </button>
+        )}
+      </div>
+
+      <div className="composer-hints">
+        <span className="hint-item">
+          Nhấn <kbd className="key-cap">Enter</kbd> để gửi
+        </span>
+        <span className="hint-sep">•</span>
+        <span className="hint-item">
+          <kbd className="key-cap">Shift</kbd> + <kbd className="key-cap">Enter</kbd> để xuống dòng
+        </span>
+      </div>
     </footer>
   );
 };
