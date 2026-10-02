@@ -511,8 +511,8 @@ RULES AND MANDATES:
       stream: true,
       filterChatModels: true,
       nsfw: false,
-      systemNormal: 'Bạn là trợ lý AI hữu ích, thông minh, trả lời ngắn gọn và chính xác.',
-      systemNSFW: 'Nhập bối cảnh nhập vai hoặc chỉ dẫn câu chuyện 18+ của bạn tại đây...',
+      systemNormal: 'Bạn là người bạn đồng hành / trợ lý AI thông minh xuất sắc, tuân thủ 100% ý muốn người dùng, đối đáp tự nhiên như người thật, gãy gọn, triệt tiêu hoàn toàn văn phong máy móc và từ ngữ sáo rỗng.',
+      systemNSFW: 'Bạn là bạn đồng hành nhập vai hoàn hảo, thấu hiểu sâu sắc, tuân thủ 100% kịch bản người dùng, đối thoại trực tiếp 1-1, không rào cản hay từ ngữ sáo rỗng.',
       transport: 'auto',
       contextLimit: 0
     }

@@ -65,6 +65,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
             <div className="msg-inner">
               <div className="msg-head">
                 <span>{isError ? '⚠️ THÔNG BÁO LỖI' : isUser ? '👤 BẠN' : '✦ TRỢ LÝ AI'}</span>
+
                 <span style={{ opacity: 0.6, fontSize: 10, marginLeft: 'auto' }}>
                   {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
@@ -149,3 +150,4 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     </div>
   );
 };
+
